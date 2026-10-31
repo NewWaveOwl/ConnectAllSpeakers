@@ -63,4 +63,8 @@ After the first milestone: local-file stereo, individual controls, calibration,
 saved groups, then additional outputs. System-audio capture, 2.1/7.1 and Android
 playback are separate later features.
 
+For other Windows apps, the later [AllConnect virtual output](WindowsVirtualOutput.md)
+would feed audio into our engine through our own native driver. It is separate
+from proving simultaneous Bluetooth playback and is not needed for the frontend.
+
 Windows API reference: [stream management](https://learn.microsoft.com/windows/win32/coreaudio/stream-management).
