@@ -16,6 +16,7 @@ profiles, EQ/delay, synchronization and surround are planned. See
 [FrontendPrototype](FrontendPrototype.md) for behavior and verification.
 
 Selected playback approach: [MainDesign — direct Windows playback](MainDesign.md).
+Future system-audio input: [AllConnect virtual Windows output](WindowsVirtualOutput.md).
 
 ## Folder structure and ownership
 
@@ -137,6 +138,8 @@ interaction and presentation only, and does not establish any playback capabilit
    reconnect behavior over a declared test duration. Fixed delay is not drift correction.
 5. **Expansion:** validate more outputs, then appropriate 2.1/7.1 source mapping.
    System-wide Windows capture and Android companion behavior are separate slices.
+   The planned virtual Windows output and driver are described in
+   [WindowsVirtualOutput](WindowsVirtualOutput.md).
 
 One Bluetooth adapter may or may not maintain the intended streams; no universal
 speaker count is guaranteed. Additional adapters require separate compatibility
