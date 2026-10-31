@@ -6,13 +6,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-
-// Layout settings
-private val ContentPadding = 24.dp
 
 /**
- * Owns shared scaffold insets and the content area's outer padding.
+ * Owns shared system insets; screen sections own their design padding.
  *
  * @param content Screen content; the scaffold applies system insets once.
  */
@@ -20,7 +16,7 @@ private val ContentPadding = 24.dp
 fun MainLayout(content: @Composable () -> Unit) {
     Scaffold { insets ->
         Box(
-            modifier = Modifier.fillMaxSize().padding(insets).padding(ContentPadding),
+            modifier = Modifier.fillMaxSize().padding(insets),
         ) {
             content()
         }
