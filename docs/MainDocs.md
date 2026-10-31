@@ -7,11 +7,15 @@ speakers, initially left/right stereo with individual volume, delay and EQ.
 Android follows as a companion; independent Android multi-speaker output is a
 separate capability investigation. Linux is outside the current product scope.
 
-Implemented here: the existing KMP scaffold, a shared Material 3 application
-shell organized by responsibility, Windows packaging target, coding guide,
-project skills and MCP configuration. Native speaker discovery/playback,
-ViewModels for live device state, profiles, EQ/delay, synchronization and surround
-are planned. Folders and documentation are not evidence of implemented audio.
+Implemented here: an interactive shared Compose/Material 3 frontend prototype
+matching AllConnect's “02 / Main setup workspace” (Figma node `3:3901`). Rooms,
+sample speakers, inspector edits, bounded dragging, snap/zoom/reset, setup dialogs
+and session-only save snapshots work locally. Every sample is explicitly demo data.
+Native speaker discovery/playback, ViewModels for live hardware state, persistent
+profiles, EQ/delay, synchronization and surround are planned. See
+[FrontendPrototype](FrontendPrototype.md) for behavior and verification.
+
+Selected playback approach: [MainDesign — direct Windows playback](MainDesign.md).
 
 ## Folder structure and ownership
 
@@ -26,15 +30,21 @@ ConnectAllSpeakers/                 repository / Gradle root
   .vscode/mcp.json                 editor GitHub HTTP MCP
   docs/
     MainDocs.md                    architecture and implementation status
+    MainDesign.md                  selected direct Windows playback design
     AI_HowToWriteCode.md           production coding standards
     DevelopmentTools.md            skill/MCP setup and reference provenance
   shared/src/
     commonMain/kotlin/com/example/connectallspeakers/
       App.kt                       shared UI assembly
       Platform.kt                  existing portable platform contract
-      View/main/MainScreen.kt      stateless initial screen
-      layout/MainLayout.kt         shared scaffold and responsive content area
-      ui/theme/Theme.kt            shared Material 3 theme owner
+      View/main/MainScreen.kt      stateless responsive prototype screen
+      View/main/components/        canvas, inspector, controls and dialogs
+      ViewModels/main/             MainViewModel session owner and typed actions
+      model/                       immutable sample speakers and room setups
+      state/                       immutable session snapshot and modal state
+      layout/MainLayout.kt         shared scaffold/inset ownership
+      ui/theme/Theme.kt            Figma palette and locally bundled Lato
+    commonMain/composeResources/   local logo, grid, halo and licensed fonts
     commonTest/                    shared tests
     jvmMain/                       portable JVM actual implementations
     jvmTest/                       JVM shared tests
@@ -79,8 +89,10 @@ View action -> ViewModel -> shared repository contract
 Repository state -> immutable UI state -> shared View
 ```
 
-This flow is the target for live features; the initial static screen has no
-repository or ViewModel. App.kt assembles shared rendering. main.kt creates
+This flow is the target for live features. The frontend prototype currently uses
+`View action -> MainViewModel -> immutable StateFlow -> View`, with no repository
+or hardware backend. App.kt owns the lifecycle-scoped presentation owner and
+assembles shared rendering. main.kt creates
 platform dependencies when implemented and owns application shutdown.
 For stereo, the engine opens two independent active outputs and maps source left
 and right deliberately. Common code cannot import WASAPI, COM or Java Sound.
@@ -110,6 +122,9 @@ Windows installers are limited to MSI for the first product target. Packaging
 requires its own build/install/clean-machine verification before release.
 
 ## Delivery sequence and acceptance
+
+The frontend prototype precedes the hardware sequence below. It validates local
+interaction and presentation only, and does not establish any playback capability.
 
 1. **Hardware feasibility:** enumerate real Windows audio endpoints, open two
    simultaneous render streams and play distinguishable signals. Pairing alone
