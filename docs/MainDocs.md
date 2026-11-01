@@ -10,10 +10,12 @@ separate capability investigation. Linux is outside the current product scope.
 Implemented here: an interactive shared Compose/Material 3 frontend prototype
 matching AllConnect's “02 / Main setup workspace” (Figma node `3:3901`). Rooms,
 sample speakers, inspector edits, bounded dragging, snap/zoom/reset, setup dialogs
-and session-only save snapshots work locally. Every sample is explicitly demo data.
-Native speaker discovery/playback, ViewModels for live hardware state, persistent
-profiles, EQ/delay, synchronization and surround are planned. See
-[FrontendPrototype](FrontendPrototype.md) for behavior and verification.
+and session-only save snapshots work locally. Windows now supplies real active
+playback endpoints through a Core Audio repository with queued device-change
+notifications. Room settings stay separate from endpoint metadata. Samples are
+isolated behind explicit Demo mode. Native playback, persistent profiles, EQ/delay,
+synchronization and surround remain planned. See [FrontendPrototype](FrontendPrototype.md)
+and [WindowsOutputDiscovery](WindowsOutputDiscovery.md) for behavior and validation.
 
 Selected playback approach: [MainDesign — direct Windows playback](MainDesign.md).
 Future system-audio input: [AllConnect virtual Windows output](WindowsVirtualOutput.md).
@@ -54,6 +56,8 @@ ConnectAllSpeakers/                 repository / Gradle root
     jsMain/, wasmJsMain/, webTest/ retained template targets, no audio commitment
   desktopApp/src/main/kotlin/com/example/connectallspeakers/
     main.kt                        Windows desktop composition/window lifecycle
+    audio/windows/                 Core Audio COM calls and notification bindings
+    data/audio/windows/            single-worker discovery repository and cleanup
   androidApp/src/main/             retained Android launcher
   webApp/src/webMain/              retained web launcher; not an active audio target
   gradle/libs.versions.toml        pinned dependencies and Android SDK levels
@@ -90,11 +94,12 @@ View action -> ViewModel -> shared repository contract
 Repository state -> immutable UI state -> shared View
 ```
 
-This flow is the target for live features. The frontend prototype currently uses
-`View action -> MainViewModel -> immutable StateFlow -> View`, with no repository
-or hardware backend. App.kt owns the lifecycle-scoped presentation owner and
-assembles shared rendering. main.kt creates
-platform dependencies when implemented and owns application shutdown.
+This flow is implemented for output discovery: `MainViewModel` observes the
+platform-neutral `AudioOutputRepository` contract; Windows owns its Core Audio
+implementation. App.kt assembles shared rendering and the scoped ViewModel.
+main.kt creates the repository, begins nonblocking shutdown, awaits native cleanup
+and exits. Common launchers without a Windows repository expose Unsupported;
+they do not silently substitute sample devices.
 For stereo, the engine opens two independent active outputs and maps source left
 and right deliberately. Common code cannot import WASAPI, COM or Java Sound.
 

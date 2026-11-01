@@ -3,7 +3,6 @@ package com.example.connectallspeakers.View.main.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,7 +12,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.example.connectallspeakers.ViewModels.main.MainAction
-import com.example.connectallspeakers.model.SampleSpeaker
+import com.example.connectallspeakers.model.RoomSpeaker
+import com.example.connectallspeakers.model.audio.OutputAvailability
 import com.example.connectallspeakers.model.SpeakerChannel
 import com.example.connectallspeakers.state.MainDialog
 import com.example.connectallspeakers.ui.theme.AllConnectColors as C
@@ -23,27 +23,32 @@ private val InspectorHeight = 450.dp
 private val TrayHeight = 184.dp
 private val PanelPadding = 20.dp
 
-/** Renders the selected sample and sample picker entry point.
- * @param speaker Selected sample, or null for an empty room.
- * @param hasSetup Whether adding a sample has an active destination.
+/** Renders room edits independently of OS metadata and offers an explicit demo-mode switch.
+ * @param speaker Selected room card, or null for an empty room.
+ * @param hasSetup Whether adding a speaker has an active destination.
+ * @param demoMode Whether the user explicitly selected the sample workspace.
  * @param onAction Screen intent callback.
  * @param modifier Parent width constraints.
  */
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
-fun SpeakerInspector(speaker: SampleSpeaker?, hasSetup: Boolean, onAction: (MainAction) -> Unit, modifier: Modifier = Modifier) {
+fun SpeakerInspector(speaker: RoomSpeaker?, hasSetup: Boolean, demoMode: Boolean, onAction: (MainAction) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Column(Modifier.fillMaxWidth().heightIn(min = InspectorHeight).background(Color.White, RoundedCornerShape(PanelCorner))
             .padding(start = PanelPadding, top = PanelPadding, end = PanelPadding), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (speaker == null) {
                 Text("No speaker selected", style = MaterialTheme.typography.titleSmall)
-                Text("Add a sample speaker to arrange this room.", color = C.Muted)
+                Text(if (demoMode) "Add a sample speaker to arrange this room." else "Add a Windows playback output to arrange this room.", color = C.Muted)
             } else {
                 Row(Modifier.height(30.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DesignIcon(Glyph.Speaker, if (speaker.channel == SpeakerChannel.Right) C.Sky else C.Teal, 24.dp)
-                    Text(speaker.name.ifBlank { "Unnamed sample" }, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                    Text(speaker.name.ifBlank { "Unnamed speaker" }, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                 }
-                WorkspaceBadge("Selected speaker", color = C.Plum, modifier = Modifier.width(126.dp))
+                WorkspaceBadge(when {
+                    speaker.isSample -> "Demo sample"
+                    speaker.availability == OutputAvailability.Unavailable -> "Unavailable"
+                    speaker.availability == OutputAvailability.Unknown -> "Availability unknown"
+                    else -> "Available output"
+                }, color = if (speaker.availability == OutputAvailability.Unavailable) MaterialTheme.colorScheme.error else C.Plum)
                 Column(Modifier.height(76.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     InspectorLabel("Channel assignment")
                     ChannelPicker(speaker.channel) { onAction(MainAction.AssignChannel(it)) }
@@ -53,29 +58,27 @@ fun SpeakerInspector(speaker: SampleSpeaker?, hasSetup: Boolean, onAction: (Main
                     WorkspaceTextField(speaker.name, { onAction(MainAction.RenameSpeaker(it)) }, "Speaker name")
                     if (speaker.name.isBlank()) Text("Enter a speaker name.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
-                InspectorLabel("Volume")
-                Row(Modifier.fillMaxWidth().height(22.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Slider(speaker.volume / 100f, { onAction(MainAction.SetVolume((it * 100).toInt())) },
-                        modifier = Modifier.weight(1f).semantics { contentDescription = "Sample speaker volume" },
-                        thumb = { Box(Modifier.size(10.dp).background(C.Sky, CircleShape)) },
-                        track = { slider ->
-                            Box(Modifier.fillMaxWidth().height(5.dp).background(C.Soft, RoundedCornerShape(3.dp))) {
-                                Box(Modifier.fillMaxWidth(slider.value).height(5.dp).background(C.Sky, RoundedCornerShape(3.dp)))
-                            }
-                        },
-                        colors = SliderDefaults.colors(thumbColor = C.Sky, activeTrackColor = C.Sky, inactiveTrackColor = C.Soft))
-                    Text("${speaker.volume}%", Modifier.width(56.dp), style = MaterialTheme.typography.labelMedium)
-                }
+                InspectorLabel("App volume")
+                VolumeSlider(speaker.volume, { onAction(MainAction.SetVolume(it)) })
                 WorkspaceButton("Test speaker", { onAction(MainAction.TestSpeaker) }, Modifier.fillMaxWidth(), Glyph.Play)
                 Text("Drag the speaker on the canvas\nto change its position.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
+                speaker.output?.let { output ->
+                    Text("Windows: ${output.displayName}\n${output.type.label()}${if (output.isDefault) " · Default output" else ""}",
+                        color = C.Muted, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
         Column(Modifier.fillMaxWidth().heightIn(min = TrayHeight).background(Color.White, RoundedCornerShape(PanelCorner)).padding(PanelPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Speaker tray", style = MaterialTheme.typography.titleMedium)
-            Text("Add a sample to this room layout.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
+            Text(if (demoMode) "Add a sample to this room layout." else "Choose an available Windows output.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
             WorkspaceButton("Add speaker", { onAction(MainAction.OpenDialog(MainDialog.AddSpeaker)) }, Modifier.fillMaxWidth(), Glyph.Add, enabled = hasSetup)
-            Text("Demo — sample speakers", color = C.Muted, style = MaterialTheme.typography.labelSmall)
+            Text(if (demoMode) "Demo — sample speakers" else "Discovery only — playback comes later", color = C.Muted, style = MaterialTheme.typography.labelSmall)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Demo mode", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                Switch(demoMode, { onAction(MainAction.SetDemoMode(it)) },
+                    modifier = Modifier.semantics { contentDescription = "Demo mode with sample speakers" })
+            }
         }
     }
 }

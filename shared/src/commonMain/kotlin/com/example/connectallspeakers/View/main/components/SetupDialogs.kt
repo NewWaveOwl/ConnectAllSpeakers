@@ -20,15 +20,19 @@ private val DialogSpacing = 12.dp
 fun SetupDialogs(state: MainUiState, onAction: (MainAction) -> Unit) {
     val dialog = state.dialog ?: return
     val title = when (dialog) { MainDialog.AddSetup -> "Add setup"; MainDialog.RenameSetup -> "Rename setup"
-        MainDialog.DeleteSetup -> "Delete setup?"; MainDialog.AddSpeaker -> "Add sample speaker" }
+        MainDialog.DeleteSetup -> "Delete setup?"; MainDialog.AddSpeaker -> if (state.demoMode) "Add sample speaker" else "Add speaker" }
     AlertDialog(onDismissRequest = { onAction(MainAction.DismissDialog) }, title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(DialogSpacing)) {
                 when (dialog) {
                     MainDialog.AddSpeaker -> {
-                        Text("Demo samples only — no devices are discovered or connected.")
-                        listOf("studio" to "Studio Speaker", "portable" to "Portable Mini", "bookshelf" to "Bookshelf One").forEach { (id, label) ->
-                            WorkspaceButton(label, { onAction(MainAction.AddSpeaker(id)) }, Modifier.fillMaxWidth(), Glyph.Speaker)
+                        if (!state.demoMode) {
+                            AudioOutputPicker(state, onAction)
+                        } else {
+                            Text("Demo samples only — no devices are discovered or connected.")
+                            listOf("studio" to "Studio Speaker", "portable" to "Portable Mini", "bookshelf" to "Bookshelf One").forEach { (id, label) ->
+                                WorkspaceButton(label, { onAction(MainAction.AddSpeaker(id)) }, Modifier.fillMaxWidth(), Glyph.Speaker)
+                            }
                         }
                     }
                     MainDialog.DeleteSetup -> Text("Remove “${state.selectedSetup?.name.orEmpty()}” and its session edits?")

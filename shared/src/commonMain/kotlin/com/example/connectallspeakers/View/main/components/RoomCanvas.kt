@@ -26,7 +26,8 @@ import androidx.compose.ui.unit.*
 import com.example.connectallspeakers.ViewModels.main.MainAction
 import com.example.connectallspeakers.model.RoomPosition
 import com.example.connectallspeakers.model.RoomSetup
-import com.example.connectallspeakers.model.SampleSpeaker
+import com.example.connectallspeakers.model.RoomSpeaker
+import com.example.connectallspeakers.model.audio.OutputAvailability
 import com.example.connectallspeakers.model.SpeakerChannel
 import com.example.connectallspeakers.ui.theme.AllConnectColors as C
 import connectallspeakers.shared.generated.resources.Res
@@ -114,18 +115,24 @@ fun RoomCanvas(room: RoomSetup, testingSpeakerId: String?, onAction: (MainAction
  * @param onAction User intent callback.
  */
 @Composable
-private fun SpeakerCard(speaker: SampleSpeaker, selected: Boolean, testing: Boolean, width: Dp, height: Dp,
+private fun SpeakerCard(speaker: RoomSpeaker, selected: Boolean, testing: Boolean, width: Dp, height: Dp,
     travelX: Float, travelY: Float, stepX: Float, stepY: Float, onAction: (MainAction) -> Unit) {
     val current by rememberUpdatedState(speaker)
     val dispatch by rememberUpdatedState(onAction)
     val density = androidx.compose.ui.platform.LocalDensity.current.density
     val scale = height / SpeakerCardHeight
-    val accent = if (speaker.channel == SpeakerChannel.Right) C.Sky else C.Teal
+    val accent = if (speaker.availability == OutputAvailability.Unavailable) MaterialTheme.colorScheme.error
+        else if (speaker.channel == SpeakerChannel.Right) C.Sky else C.Teal
+    val status = when {
+        speaker.availability == OutputAvailability.Unavailable -> "Unavailable"
+        speaker.availability == OutputAvailability.Unknown -> "Availability unknown"
+        else -> speaker.channel.caption
+    }
     Row(Modifier.offset { IntOffset((speaker.position.x * travelX * density).roundToInt(), (speaker.position.y * travelY * density).roundToInt()) }
         .size(width, height).shadow(if (selected) 10.dp else 0.dp, RoundedCornerShape(13.dp))
         .background(if (testing) C.Sage else Color.White, RoundedCornerShape(13.dp))
         .border(if (testing) 4.dp else 2.dp, if (testing) C.Sage else accent, RoundedCornerShape(13.dp))
-        .semantics { contentDescription = "Sample speaker ${speaker.name}, ${speaker.channel.label}. Use arrow keys to move."; this.selected = selected }
+        .semantics { contentDescription = "${if (speaker.isSample) "Sample speaker" else "Windows output"} ${speaker.name}, ${speaker.channel.label}. $status. Use arrow keys to move."; this.selected = selected }
         .onPreviewKeyEvent { event ->
             val delta = when (event.key) { Key.DirectionLeft -> RoomPosition(-stepX, 0f); Key.DirectionRight -> RoomPosition(stepX, 0f)
                 Key.DirectionUp -> RoomPosition(0f, -stepY); Key.DirectionDown -> RoomPosition(0f, stepY); else -> null }
@@ -151,9 +158,10 @@ private fun SpeakerCard(speaker: SampleSpeaker, selected: Boolean, testing: Bool
         }.padding(12.dp * scale), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp * scale)) {
         DesignIcon(Glyph.Speaker, accent, 28.dp * scale)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp * scale)) {
-            Text(speaker.name.ifBlank { "Unnamed sample" }, fontSize = (13 * scale).sp, lineHeight = (18 * scale).sp,
+            Text(speaker.name.ifBlank { "Unnamed speaker" }, fontSize = (13 * scale).sp, lineHeight = (18 * scale).sp,
                 style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(speaker.channel.caption, color = C.Muted, fontSize = (11 * scale).sp, lineHeight = (15 * scale).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(status, color = if (speaker.availability == OutputAvailability.Unavailable) accent else C.Muted,
+                fontSize = (11 * scale).sp, lineHeight = (15 * scale).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

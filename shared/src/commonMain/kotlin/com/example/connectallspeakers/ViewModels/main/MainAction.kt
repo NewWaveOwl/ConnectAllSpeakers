@@ -4,7 +4,7 @@ import com.example.connectallspeakers.model.RoomPosition
 import com.example.connectallspeakers.model.SpeakerChannel
 import com.example.connectallspeakers.state.MainDialog
 
-/** User intents emitted by stateless rendering; all values are demo presentation data. */
+/** User intents emitted by stateless rendering; playback remains unimplemented. */
 sealed interface MainAction {
     /** @property id Existing room to activate. */
     data class SelectSetup(val id: String) : MainAction
@@ -41,5 +41,10 @@ sealed interface MainAction {
     data object DismissDialog : MainAction
     /** @property sampleKey One of the explicit sample picker keys. */
     data class AddSpeaker(val sampleKey: String) : MainAction
+    /** @property endpointId Opaque Windows endpoint ID selected from the current result. */
+    data class AddOutput(val endpointId: String) : MainAction
+    /** @property enabled Explicit request to switch to/from the isolated sample workspace. */
+    data class SetDemoMode(val enabled: Boolean) : MainAction
+    data object RefreshOutputs : MainAction
     data object DismissFeedback : MainAction
 }

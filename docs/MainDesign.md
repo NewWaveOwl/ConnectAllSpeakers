@@ -9,8 +9,9 @@ receiver phones or custom hardware is required by this design.
 **Status:** selected design; native playback is not implemented or hardware-verified.
 
 The current deliverable is a preceding [frontend prototype](FrontendPrototype.md):
-an interactive Windows workspace using explicitly labeled sample speakers and
-in-memory state. Its controls do not connect hardware or produce audio. The
+an interactive Windows workspace with active Core Audio output discovery and
+in-memory room state. Samples remain available in explicit Demo mode. Enumeration
+does not pair devices or produce audio; see [discovery](WindowsOutputDiscovery.md). The
 playback architecture and hardware milestones below remain future work.
 
 ## How it works

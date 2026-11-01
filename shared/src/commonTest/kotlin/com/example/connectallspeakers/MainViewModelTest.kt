@@ -5,13 +5,14 @@ import com.example.connectallspeakers.ViewModels.main.MainViewModel
 import com.example.connectallspeakers.model.RoomPosition
 import com.example.connectallspeakers.model.SpeakerChannel
 import com.example.connectallspeakers.state.MainDialog
+import com.example.connectallspeakers.state.MainUiState
 import kotlin.test.*
 
 /** Behavioral acceptance tests for the frontend session; no hardware or wall-clock dependency. */
 class MainViewModelTest {
     @Test
     fun initialSelectionIsTheRightSampleAtEightyPercent() {
-        val state = MainViewModel().state.value
+        val state = MainViewModel(MainUiState.demo()).state.value
         assertEquals("Living room", state.selectedSetup?.name)
         assertEquals("Studio Right", state.selectedSpeaker?.name)
         assertEquals(80, state.selectedSpeaker?.volume)
@@ -20,7 +21,7 @@ class MainViewModelTest {
 
     @Test
     fun switchingRoomsRetainsIndependentEditsAndSelections() {
-        val owner = MainViewModel()
+        val owner = MainViewModel(MainUiState.demo())
         owner.onAction(MainAction.SelectSpeaker("living-left"))
         owner.onAction(MainAction.RenameSpeaker("Window sample"))
         owner.onAction(MainAction.SetVolume(27))
@@ -38,7 +39,7 @@ class MainViewModelTest {
 
     @Test
     fun inspectorChangesOnlySelectedSpeakerAndBoundsVolume() {
-        val owner = MainViewModel()
+        val owner = MainViewModel(MainUiState.demo())
         val left = owner.state.value.selectedSetup!!.speakers.first()
         owner.onAction(MainAction.RenameSpeaker("Rear sample"))
         owner.onAction(MainAction.AssignChannel(SpeakerChannel.Left))
@@ -53,7 +54,7 @@ class MainViewModelTest {
 
     @Test
     fun movesStayNormalizedAndNeverReassignChannels() {
-        val owner = MainViewModel()
+        val owner = MainViewModel(MainUiState.demo())
         owner.onAction(MainAction.MoveSpeaker("living-right", RoomPosition(-4f, 8f)))
         assertEquals(RoomPosition(0f, 1f), owner.state.value.selectedSpeaker?.position)
         assertEquals(SpeakerChannel.Right, owner.state.value.selectedSpeaker?.channel)
@@ -63,7 +64,7 @@ class MainViewModelTest {
 
     @Test
     fun snapIsAppliedAtGestureEndAndRespectsToggle() {
-        val owner = MainViewModel()
+        val owner = MainViewModel(MainUiState.demo())
         owner.onAction(MainAction.MoveSpeaker("living-right", RoomPosition(.34f, .66f)))
         assertEquals(RoomPosition(.34f, .66f), owner.state.value.selectedSpeaker?.position)
         owner.onAction(MainAction.FinishMove("living-right", .1f, .1f))
@@ -77,7 +78,7 @@ class MainViewModelTest {
 
     @Test
     fun resetRestoresHomesAndZoomWhileRetainingInspectorEdits() {
-        val owner = MainViewModel()
+        val owner = MainViewModel(MainUiState.demo())
         val home = owner.state.value.selectedSpeaker!!.position
         owner.onAction(MainAction.RenameSpeaker("Edited sample"))
         owner.onAction(MainAction.SetVolume(19))
@@ -99,7 +100,7 @@ class MainViewModelTest {
 
     @Test
     fun savedSnapshotRemainsIndependentOfSubsequentEdits() {
-        val owner = MainViewModel()
+        val owner = MainViewModel(MainUiState.demo())
         owner.onAction(MainAction.SaveSetup)
         val saved = owner.state.value.savedSetups.getValue("living")
         owner.onAction(MainAction.RenameSpeaker("After save"))
@@ -111,7 +112,7 @@ class MainViewModelTest {
 
     @Test
     fun setupDialogsRejectBlankAndDuplicateNamesAndTrimValidNames() {
-        val owner = MainViewModel()
+        val owner = MainViewModel(MainUiState.demo())
         owner.onAction(MainAction.OpenDialog(MainDialog.AddSetup))
         owner.onAction(MainAction.DialogName("   "))
         owner.onAction(MainAction.ConfirmDialog)
@@ -132,7 +133,7 @@ class MainViewModelTest {
 
     @Test
     fun deletingLastSetupAllowsCreatingAnEmptyRoomAgain() {
-        val owner = MainViewModel()
+        val owner = MainViewModel(MainUiState.demo())
         repeat(3) {
             owner.onAction(MainAction.OpenDialog(MainDialog.DeleteSetup))
             owner.onAction(MainAction.ConfirmDialog)
@@ -151,7 +152,7 @@ class MainViewModelTest {
 
     @Test
     fun repeatedSamplePicksHaveUniqueIdsAndResetToTheirOwnHome() {
-        val owner = MainViewModel()
+        val owner = MainViewModel(MainUiState.demo())
         repeat(4) { owner.onAction(MainAction.AddSpeaker("studio")) }
         val speakers = owner.state.value.setups.flatMap { it.speakers }
         assertEquals(speakers.size, speakers.map { it.id }.toSet().size)
