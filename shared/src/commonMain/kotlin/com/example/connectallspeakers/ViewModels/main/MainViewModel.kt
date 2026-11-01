@@ -4,11 +4,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.connectallspeakers.model.RoomPosition
 import com.example.connectallspeakers.model.RoomSetup
-import com.example.connectallspeakers.model.SampleSpeaker
+import com.example.connectallspeakers.model.RoomSpeaker
 import com.example.connectallspeakers.model.SpeakerChannel
+import com.example.connectallspeakers.model.emptySetups
+import com.example.connectallspeakers.model.sampleSetups
+import com.example.connectallspeakers.model.audio.OutputAvailability
+import com.example.connectallspeakers.data.audio.AudioOutputRepository
+import com.example.connectallspeakers.data.audio.AudioOutputSnapshot
+import com.example.connectallspeakers.data.audio.AudioOutputStatus
 import com.example.connectallspeakers.state.MainDialog
 import com.example.connectallspeakers.state.MainUiState
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,15 +27,33 @@ import kotlin.math.round
 // Animation settings
 private const val TEST_HIGHLIGHT_MILLIS = 1400L
 
-/** Owns this in-memory demo session. No device, network or persistence services exist.
+/** Owns room edits and reconciles discovery metadata without any playback or persistence.
  * @param initialState Optional deterministic session used by behavior tests.
+ * @param outputRepository Platform discovery contract, or null on unsupported launchers.
+ * @param collectionScope Optional test scope; production defaults to this ViewModel's lifetime.
  */
-class MainViewModel(initialState: MainUiState = MainUiState()) : ViewModel() {
-    private val mutableState = MutableStateFlow(initialState)
+class MainViewModel(initialState: MainUiState = MainUiState(),
+    private val outputRepository: AudioOutputRepository? = null,
+    collectionScope: CoroutineScope? = null,
+) : ViewModel() {
+    private val mutableState = MutableStateFlow(initialState.copy(outputs = outputRepository?.outputs?.value ?: initialState.outputs))
     /** Read-only session state; immutable copies are emitted for every edit. */
     val state: StateFlow<MainUiState> = mutableState.asStateFlow()
     private var nextIdentity = 1L
     private var testJob: Job? = null
+    private var inactiveSetups = if (initialState.demoMode) emptySetups() else sampleSetups()
+    private var inactiveSelection: String? = "living"
+    private var inactiveSaves: Map<String, RoomSetup> = emptyMap()
+
+    init {
+        if (outputRepository != null) (collectionScope ?: viewModelScope).launch {
+            outputRepository.outputs.collect { snapshot ->
+                if (state.value.demoMode) inactiveSetups = reconcileRooms(inactiveSetups, snapshot)
+                mutableState.update { current -> current.copy(outputs = snapshot,
+                    setups = if (current.demoMode) current.setups else reconcileRooms(current.setups, snapshot)) }
+            }
+        }
+    }
 
     /** Applies a user intent synchronously, except for the cancellable visual test timeout.
      * @param action Intent from the view. Unknown IDs and non-finite moves are ignored.
@@ -70,6 +95,9 @@ class MainViewModel(initialState: MainUiState = MainUiState()) : ViewModel() {
             MainAction.ConfirmDialog -> confirmDialog()
             MainAction.DismissDialog -> mutableState.update { it.copy(dialog = null, dialogError = null) }
             is MainAction.AddSpeaker -> addSpeaker(action.sampleKey)
+            is MainAction.AddOutput -> addOutput(action.endpointId)
+            is MainAction.SetDemoMode -> switchMode(action.enabled)
+            MainAction.RefreshOutputs -> outputRepository?.refresh()
             MainAction.DismissFeedback -> mutableState.update { it.copy(feedback = null) }
         }
     }
@@ -86,7 +114,7 @@ class MainViewModel(initialState: MainUiState = MainUiState()) : ViewModel() {
     /** Updates only the selected sample in the active room.
      * @param transform Pure speaker transformation.
      */
-    private fun editSelected(transform: (SampleSpeaker) -> SampleSpeaker) = editRoom { room ->
+    private fun editSelected(transform: (RoomSpeaker) -> RoomSpeaker) = editRoom { room ->
         room.copy(speakers = room.speakers.map { if (it.id == room.selectedSpeakerId) transform(it) else it })
     }
 
@@ -134,14 +162,67 @@ class MainViewModel(initialState: MainUiState = MainUiState()) : ViewModel() {
      * @param sampleKey Picker choice; unrecognized choices are ignored.
      */
     private fun addSpeaker(sampleKey: String) {
+        if (!state.value.demoMode) return
         val name = when (sampleKey) { "studio" -> "Studio Speaker"; "portable" -> "Portable Mini"; "bookshelf" -> "Bookshelf One"; else -> return }
         if (state.value.selectedSetup == null) return
         val id = uniqueId("sample")
         editRoom { room ->
             val offset = room.speakers.size % 5 * .08f
-            room.copy(speakers = room.speakers + SampleSpeaker(id, name, SpeakerChannel.Mono, 80, RoomPosition(.35f + offset, .45f)), selectedSpeakerId = id)
+            room.copy(speakers = room.speakers + RoomSpeaker(id, name, SpeakerChannel.Mono, 80, RoomPosition(.35f + offset, .45f)), selectedSpeakerId = id)
         }
         mutableState.update { it.copy(dialog = null) }
+    }
+
+    /** Adds only a current active output; identity is independent of names and card instance IDs.
+     * @param endpointId Unparsed ID selected from the latest successful enumeration.
+     */
+    private fun addOutput(endpointId: String) {
+        val current = state.value
+        if (current.demoMode || current.outputs.status != AudioOutputStatus.Ready) return
+        val output = current.outputs.devices.find { it.endpointId == endpointId && it.availability == OutputAvailability.Active } ?: return
+        val room = current.selectedSetup ?: return
+        val existing = room.speakers.find { it.output?.endpointId == endpointId }
+        if (existing != null) {
+            editRoom { it.copy(selectedSpeakerId = existing.id) }
+        } else {
+            val id = uniqueId("output")
+            val position = RoomPosition(.15f + room.speakers.size % 5 * .15f, .25f)
+            editRoom { it.copy(speakers = it.speakers + RoomSpeaker(id, output.displayName,
+                SpeakerChannel.Mono, 80, position, output = output), selectedSpeakerId = id) }
+        }
+        mutableState.update { it.copy(dialog = null) }
+    }
+
+    /** Switches isolated room banks only on explicit user request, preserving both sets of edits.
+     * @param enabled Whether to enter the clearly labeled sample workspace.
+     */
+    private fun switchMode(enabled: Boolean) {
+        val current = state.value
+        if (current.demoMode == enabled) return
+        val rooms = if (enabled) inactiveSetups else reconcileRooms(inactiveSetups, current.outputs)
+        val selection = inactiveSelection
+        val saves = inactiveSaves
+        inactiveSetups = current.setups
+        inactiveSelection = current.selectedSetupId
+        inactiveSaves = current.savedSetups
+        mutableState.value = current.copy(demoMode = enabled, setups = rooms, selectedSetupId = selection,
+            savedSetups = saves, dialog = null, dialogError = null, testingSpeakerId = null, feedback = null)
+    }
+
+    /** Reconciles OS metadata only; never changes names, channels, positions, volumes or selection.
+     * @param rooms Real-device rooms, including currently inactive rooms.
+     * @param snapshot Latest discovery result. Errors/refreshes mean Unknown, never a disconnection.
+     * @return Updated immutable room copies retaining missing endpoint cards.
+     */
+    private fun reconcileRooms(rooms: List<RoomSetup>, snapshot: AudioOutputSnapshot): List<RoomSetup> {
+        val outputs = snapshot.devices.associateBy { it.endpointId }
+        return rooms.map { room -> room.copy(speakers = room.speakers.map { speaker ->
+            val old = speaker.output
+            if (old == null) speaker else speaker.copy(output = when (snapshot.status) {
+                AudioOutputStatus.Ready -> outputs[old.endpointId] ?: old.copy(availability = OutputAvailability.Unavailable, isDefault = false)
+                else -> old.copy(availability = OutputAvailability.Unknown, isDefault = false)
+            })
+        }) }
     }
 
     /** Allocates an ID distinct from every current and saved room/sample.
@@ -149,7 +230,7 @@ class MainViewModel(initialState: MainUiState = MainUiState()) : ViewModel() {
      * @return A session-unique identity, even with injected test state.
      */
     private fun uniqueId(prefix: String): String {
-        val rooms = state.value.setups + state.value.savedSetups.values
+        val rooms = state.value.setups + state.value.savedSetups.values + inactiveSetups + inactiveSaves.values
         val used = rooms.flatMap { listOf(it.id) + it.speakers.map { speaker -> speaker.id } }.toSet()
         var candidate: String
         do { candidate = "$prefix-${nextIdentity++}" } while (candidate in used)
@@ -160,7 +241,7 @@ class MainViewModel(initialState: MainUiState = MainUiState()) : ViewModel() {
     private fun testSpeaker() {
         val id = state.value.selectedSpeaker?.id ?: return
         testJob?.cancel()
-        mutableState.update { it.copy(testingSpeakerId = id, feedback = "Audio testing is not available yet.") }
+        mutableState.update { it.copy(testingSpeakerId = id, feedback = "Audio testing is not available yet. Playback is not implemented.") }
         testJob = viewModelScope.launch {
             delay(TEST_HIGHLIGHT_MILLIS)
             mutableState.update { it.copy(testingSpeakerId = null) }

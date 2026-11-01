@@ -51,12 +51,12 @@ fun MainScreen(state: MainUiState, onAction: (MainAction) -> Unit, modifier: Mod
             if (wide) {
                 Row(Modifier.fillMaxWidth().padding(ScreenPadding), horizontalArrangement = Arrangement.spacedBy(ScreenPadding)) {
                     RoomColumn(state.selectedSetup, state.testingSpeakerId, onAction, Modifier.weight(1f), canvasHeight)
-                    SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, onAction, Modifier.width(InspectorWidth))
+                    SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, state.demoMode, onAction, Modifier.width(InspectorWidth))
                 }
             } else {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     RoomColumn(state.selectedSetup, state.testingSpeakerId, onAction, Modifier.fillMaxWidth(), canvasHeight)
-                    SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, onAction, Modifier.fillMaxWidth())
+                    SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, state.demoMode, onAction, Modifier.fillMaxWidth())
                 }
             }
         }
@@ -136,7 +136,7 @@ private fun RoomColumn(room: RoomSetup?, testingSpeakerId: String?, onAction: (M
     Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (room == null) {
             Text("Create your first setup", style = MaterialTheme.typography.headlineSmall)
-            Text("Add a setup, then choose sample speakers to arrange your room.")
+            Text("Add a setup, then choose speakers to arrange your room.")
             WorkspaceButton("Add setup", { onAction(MainAction.OpenDialog(MainDialog.AddSetup)) }, glyph = Glyph.Add, primary = true)
         } else {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -160,7 +160,7 @@ private fun RoomColumn(room: RoomSetup?, testingSpeakerId: String?, onAction: (M
                     Text("Reset positions", color = C.Muted, style = MaterialTheme.typography.bodyMedium)
                 }
                 Text("•", color = C.Muted)
-                Text("Use the speaker tray to add samples to your room.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
+                Text("Use the speaker tray to add outputs to your room.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
             }
         }
     }

@@ -1,12 +1,18 @@
 # AllConnect frontend prototype
 
+The original sample-only screen is retained in explicit **Demo mode**. The current
+Windows launcher starts with empty real-device rooms and uses
+[Core Audio output discovery](WindowsOutputDiscovery.md); it never silently falls
+back to samples. The historical prototype verification below remains distinct
+from the current discovery validation.
+
 This is an interactive Windows Compose Multiplatform/Material 3 prototype, not an
 audio engine. It implements the [Main setup workspace Figma frame](https://www.figma.com/design/00yms4g5bXQxxiZVINVXo3/AllConnect?node-id=3-3901)
 (“02 / Main setup workspace”, node `3:3901`, reference 1440 × 900).
 
 ## Session behavior
 
-- Living room starts with Studio Left and Studio Right; Studio Right is selected
+- In Demo mode, Living room starts with Studio Left and Studio Right; Studio Right is selected
   at 80%. Desk stereo and Evening listening have independent sample instances.
 - Click a card to inspect it. Name, explicit Left/Right/Mono channel and volume
   edits update that sample immediately. Moving it never reassigns its channel.
@@ -34,7 +40,22 @@ audio engine. It implements the [Main setup workspace Figma frame](https://www.f
 `MainViewModel` owns a read-only StateFlow of immutable models. The screen and its
 components render that snapshot and emit typed callbacks. `App.kt` scopes the owner
 to its lifecycle. `desktopApp` owns the reference-size window and platform entry.
-No Bluetooth, audio, microphone, EQ, networking, database or disk services exist.
+The shared UI performs no native calls. Windows discovery is injected by the
+desktop launcher; playback, pairing, microphone, EQ, network, database and disk
+persistence services remain unimplemented.
+
+## Volume control update
+
+The native `VolumeSlider.kt` implements Figma's “New Slder_ v2a” source (`17:891`):
+an 18 dp sage rail with proportional sky fill and 3 dp corners, without a separate
+thumb. Its 48 dp interaction row retains Material 3 range semantics, pointer and
+keyboard behavior. The percentage is right-aligned in a 36 dp column with an 8 dp
+gap; the row shares the inspector fields' and button's outer edges.
+
+The MockUps page now uses linked component `21:883` in all three workspace volume
+controls (`3:3798`, `3:4913`, `3:5849`). The original source group is preserved.
+The examples retain 80% values with matching 80% fill, Lato Bold percentages and
+centered rail/value alignment. Inspector heights accommodate the interaction row.
 
 ## Local design resources
 

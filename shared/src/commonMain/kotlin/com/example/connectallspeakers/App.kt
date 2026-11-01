@@ -8,11 +8,14 @@ import com.example.connectallspeakers.ViewModels.main.MainViewModel
 import com.example.connectallspeakers.View.main.MainScreen
 import com.example.connectallspeakers.layout.MainLayout
 import com.example.connectallspeakers.ui.theme.ConnectAllSpeakersTheme
+import com.example.connectallspeakers.data.audio.AudioOutputRepository
 
-/** Assembles reusable presentation; platform launchers own native dependencies. */
+/** Assembles shared rendering; the platform owner closes discovery independently of screen disposal.
+ * @param outputRepository Native discovery supplied by Windows, or null on unsupported platforms.
+ */
 @Composable
-fun App() {
-    val owner = viewModel { MainViewModel() }
+fun App(outputRepository: AudioOutputRepository? = null) {
+    val owner = viewModel { MainViewModel(outputRepository = outputRepository) }
     val state by owner.state.collectAsStateWithLifecycle()
     ConnectAllSpeakersTheme {
         MainLayout {

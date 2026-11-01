@@ -1,8 +1,11 @@
 package com.example.connectallspeakers.state
 
 import com.example.connectallspeakers.model.RoomSetup
-import com.example.connectallspeakers.model.SampleSpeaker
+import com.example.connectallspeakers.model.RoomSpeaker
+import com.example.connectallspeakers.model.emptySetups
 import com.example.connectallspeakers.model.sampleSetups
+import com.example.connectallspeakers.data.audio.AudioOutputSnapshot
+import com.example.connectallspeakers.data.audio.AudioOutputStatus
 
 /** Lightweight modal destinations, confined to this screen. */
 enum class MainDialog { AddSetup, RenameSetup, DeleteSetup, AddSpeaker }
@@ -16,9 +19,11 @@ enum class MainDialog { AddSetup, RenameSetup, DeleteSetup, AddSpeaker }
  * @property dialogError Validation feedback, if any.
  * @property feedback Durable feedback until explicitly dismissed or replaced.
  * @property testingSpeakerId Temporary visual-only test highlight.
+ * @property demoMode Whether the user explicitly selected the isolated sample workspace.
+ * @property outputs Current real-output discovery state; never replaced with demo fixtures.
  */
 data class MainUiState(
-    val setups: List<RoomSetup> = sampleSetups(),
+    val setups: List<RoomSetup> = emptySetups(),
     val selectedSetupId: String? = "living",
     val savedSetups: Map<String, RoomSetup> = emptyMap(),
     val dialog: MainDialog? = null,
@@ -26,11 +31,21 @@ data class MainUiState(
     val dialogError: String? = null,
     val feedback: String? = null,
     val testingSpeakerId: String? = null,
+    val demoMode: Boolean = false,
+    val outputs: AudioOutputSnapshot = AudioOutputSnapshot(AudioOutputStatus.Unsupported,
+        message = "Windows output discovery is unavailable on this platform."),
 ) {
     /** Active room, absent when all rooms have been deleted. */
     val selectedSetup: RoomSetup? get() = setups.find { it.id == selectedSetupId }
 
-    /** Selected sample in the active room, absent for an empty room. */
-    val selectedSpeaker: SampleSpeaker?
+    /** Selected room card, absent for an empty room. */
+    val selectedSpeaker: RoomSpeaker?
         get() = selectedSetup?.let { room -> room.speakers.find { it.id == room.selectedSpeakerId } }
+
+    companion object {
+        /** Explicit sample fixture for previews and frontend tests.
+         * @return An isolated demo workspace with no hardware claims.
+         */
+        fun demo(): MainUiState = MainUiState(setups = sampleSetups(), demoMode = true)
+    }
 }
