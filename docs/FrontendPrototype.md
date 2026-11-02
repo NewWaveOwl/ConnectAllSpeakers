@@ -36,8 +36,9 @@ It implements the [Main setup workspace Figma frame](https://www.figma.com/desig
   output it requests an explicit ten-second tone. Its highlight follows the test
   session and clears on completion, error or Stop. Actual native playback remains
   subject to the user checks in WindowsPlayback.
-- Settings stays disabled, with a focusable accessible explanation. Narrow windows
-  stack the inspector below the room, with vertical scrolling and horizontal
+- Settings opens a small dismissible dialog with a muted, centered
+  “Made by Artiom Sova” footer. Configuration controls remain future work.
+  Narrow windows stack the inspector below the room, with vertical scrolling and horizontal
   scrolling for overflowing setup/title/tool rows.
 
 `MainViewModel` owns a read-only StateFlow of immutable models. The screen and its

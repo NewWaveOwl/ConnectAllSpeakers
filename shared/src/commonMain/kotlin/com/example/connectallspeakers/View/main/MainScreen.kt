@@ -2,7 +2,6 @@ package com.example.connectallspeakers.View.main
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -45,7 +44,7 @@ fun MainScreen(state: MainUiState, onAction: (MainAction) -> Unit, modifier: Mod
         val wide = maxWidth >= StackedBreakpoint
         val canvasHeight = (maxHeight - WorkspaceChromeHeight).coerceAtLeast(MinCanvasHeight)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).background(C.Paper)) {
-            WorkspaceHeader()
+            WorkspaceHeader { onAction(MainAction.OpenDialog(MainDialog.Settings)) }
             SetupToolbar(state, onAction)
             if (wide) {
                 Row(Modifier.fillMaxWidth().padding(ScreenPadding), horizontalArrangement = Arrangement.spacedBy(ScreenPadding)) {
@@ -70,9 +69,11 @@ fun MainScreen(state: MainUiState, onAction: (MainAction) -> Unit, modifier: Mod
     SetupDialogs(state, onAction)
 }
 
-/** Renders the exported 44 × 52 logo slot and a keyboard-readable Settings explanation. */
+/** Renders the exported 44 × 52 logo slot and the Settings action.
+ * @param onSettings Opens the screen-local Settings dialog.
+ */
 @Composable
-private fun WorkspaceHeader() {
+private fun WorkspaceHeader(onSettings: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxWidth().height(76.dp).background(MaterialTheme.colorScheme.surface)) {
         val flexibleSpace = (maxWidth - 740.dp).coerceIn(0.dp, 700.dp)
         Row(Modifier.fillMaxSize().padding(horizontal = ScreenPadding), verticalAlignment = Alignment.CenterVertically,
@@ -86,11 +87,7 @@ private fun WorkspaceHeader() {
                 withStyle(SpanStyle(color = C.Teal)) { append("Connect") }
             }, style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.width(flexibleSpace))
-            Box(Modifier.semantics(mergeDescendants = true) {
-                contentDescription = "Settings unavailable. A settings screen is not included in this prototype."
-            }.focusable()) {
-                WorkspaceButton("Settings", {}, Modifier.width(124.dp), Glyph.Settings, enabled = false)
-            }
+            WorkspaceButton("Settings", onSettings, Modifier.width(124.dp), Glyph.Settings)
         }
     }
 }

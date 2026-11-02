@@ -30,6 +30,8 @@ stereo are still future work.
   zoom and Reset positions. Moving cards changes the layout, not audio timing.
 - Keep independent room edits and Save setup snapshots **for this session only**.
   Closing the app discards them. Explicit Demo mode offers silent sample speakers.
+- Open Settings to see the author credit, “Made by Artiom Sova,” in its footer.
+  Configuration controls are planned for a later update.
 
 An assigned output disconnecting or a playback failure stops the whole session. Reconnecting an output
 does not resume audio automatically; press Play again. Demo speakers never act as
@@ -91,7 +93,7 @@ remain separate verification work.
 ## Remaining work
 
 - Acoustic delay calibration, clock-drift correction and synchronized playback.
-- EQ, delay controls, persistent profiles and a settings screen.
+- EQ, delay controls, persistent profiles and configuration settings.
 - More than two playback outputs, surround and additional source formats.
 - System-wide Windows audio input and the planned [virtual output](docs/WindowsVirtualOutput.md).
 - Android companion/playback capability work. The Android launcher builds, but

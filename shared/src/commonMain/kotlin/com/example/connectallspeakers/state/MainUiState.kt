@@ -9,7 +9,7 @@ import com.example.connectallspeakers.data.audio.AudioOutputStatus
 import com.example.connectallspeakers.model.audio.PlaybackSnapshot
 
 /** Lightweight modal destinations, confined to this screen. */
-enum class MainDialog { AddSetup, RenameSetup, DeleteSetup, AddSpeaker }
+enum class MainDialog { AddSetup, RenameSetup, DeleteSetup, AddSpeaker, Settings }
 
 /** One authoritative, immutable frontend session snapshot.
  * @property setups Current independently edited rooms.

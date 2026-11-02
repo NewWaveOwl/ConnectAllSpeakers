@@ -12,7 +12,7 @@ import com.example.connectallspeakers.state.MainUiState
 // Layout settings
 private val DialogSpacing = 12.dp
 
-/** Small screen-local dialogs with validation owned by the ViewModel.
+/** Small screen-local dialogs with validation and visibility owned by the ViewModel.
  * @param state Current modal and draft values.
  * @param onAction Screen intent callback.
  */
@@ -20,7 +20,12 @@ private val DialogSpacing = 12.dp
 fun SetupDialogs(state: MainUiState, onAction: (MainAction) -> Unit) {
     val dialog = state.dialog ?: return
     val title = when (dialog) { MainDialog.AddSetup -> "Add setup"; MainDialog.RenameSetup -> "Rename setup"
-        MainDialog.DeleteSetup -> "Delete setup?"; MainDialog.AddSpeaker -> if (state.demoMode) "Add sample speaker" else "Add speaker" }
+        MainDialog.DeleteSetup -> "Delete setup?"; MainDialog.AddSpeaker -> if (state.demoMode) "Add sample speaker" else "Add speaker"
+        MainDialog.Settings -> {
+            SettingsDialog { onAction(MainAction.DismissDialog) }
+            return
+        }
+    }
     AlertDialog(onDismissRequest = { onAction(MainAction.DismissDialog) }, title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(DialogSpacing)) {
