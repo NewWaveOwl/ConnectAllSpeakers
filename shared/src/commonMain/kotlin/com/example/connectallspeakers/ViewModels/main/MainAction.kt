@@ -4,11 +4,11 @@ import com.example.connectallspeakers.model.RoomPosition
 import com.example.connectallspeakers.model.SpeakerChannel
 import com.example.connectallspeakers.state.MainDialog
 
-/** User intents emitted by stateless rendering; playback remains unimplemented. */
+/** User intents emitted by stateless rendering; platform audio executes behind a shared contract. */
 sealed interface MainAction {
     /** @property id Existing room to activate. */
     data class SelectSetup(val id: String) : MainAction
-    /** @property id Existing sample in the active room. */
+    /** @property id Existing card in the active room. */
     data class SelectSpeaker(val id: String) : MainAction
     /** @property name Immediate speaker-name draft, including temporarily blank text. */
     data class RenameSpeaker(val name: String) : MainAction
@@ -33,6 +33,14 @@ sealed interface MainAction {
     data object ResetPositions : MainAction
     data object SaveSetup : MainAction
     data object TestSpeaker : MainAction
+    /** Opens the platform chooser without automatically playing its selection. */
+    data object ChooseAudioFile : MainAction
+    /** Starts/restarts the loaded file or resumes its paused native queues. */
+    data object Play : MainAction
+    /** Retains the current native buffers without advancing playback. */
+    data object Pause : MainAction
+    /** Releases native streams and resets the retained file to its beginning. */
+    data object Stop : MainAction
     /** @property dialog Modal to open. */
     data class OpenDialog(val dialog: MainDialog) : MainAction
     /** @property name Current setup-name input. */

@@ -3,11 +3,12 @@
 The original sample-only screen is retained in explicit **Demo mode**. The current
 Windows launcher starts with empty real-device rooms and uses
 [Core Audio output discovery](WindowsOutputDiscovery.md); it never silently falls
-back to samples. The historical prototype verification below remains distinct
-from the current discovery validation.
+back to samples. The current launcher also injects experimental
+[local WAV playback](WindowsPlayback.md); its hardware checks are explicitly
+user-run. The historical prototype verification below remains distinct.
 
-This is an interactive Windows Compose Multiplatform/Material 3 prototype, not an
-audio engine. It implements the [Main setup workspace Figma frame](https://www.figma.com/design/00yms4g5bXQxxiZVINVXo3/AllConnect?node-id=3-3901)
+This is an interactive Windows Compose Multiplatform/Material 3 workspace.
+It implements the [Main setup workspace Figma frame](https://www.figma.com/design/00yms4g5bXQxxiZVINVXo3/AllConnect?node-id=3-3901)
 (“02 / Main setup workspace”, node `3:3901`, reference 1440 × 900).
 
 ## Session behavior
@@ -31,8 +32,9 @@ audio engine. It implements the [Main setup workspace Figma frame](https://www.f
   a distinct session instance; repeated types cannot create duplicate IDs.
 - Save setup captures an independent in-memory snapshot and confirms “saved for
   this session.” It does not write files or restore data after closing the app.
-- Test speaker shows a temporary visual highlight (1.4 seconds) and “Audio testing
-  is not available yet.” A later test cancels the previous highlight timer.
+- Demo Test speaker explains that sample devices cannot play audio. For a real
+  output it requests an explicit one-second tone and a 1.4-second visual highlight;
+  actual native playback remains subject to the user checks in WindowsPlayback.
 - Settings stays disabled, with a focusable accessible explanation. Narrow windows
   stack the inspector below the room, with vertical scrolling and horizontal
   scrolling for overflowing setup/title/tool rows.
@@ -41,8 +43,8 @@ audio engine. It implements the [Main setup workspace Figma frame](https://www.f
 components render that snapshot and emit typed callbacks. `App.kt` scopes the owner
 to its lifecycle. `desktopApp` owns the reference-size window and platform entry.
 The shared UI performs no native calls. Windows discovery is injected by the
-desktop launcher; playback, pairing, microphone, EQ, network, database and disk
-persistence services remain unimplemented.
+desktop launcher alongside experimental playback. Pairing, microphone, EQ,
+network, database and disk persistence services remain unimplemented.
 
 ## Volume control update
 

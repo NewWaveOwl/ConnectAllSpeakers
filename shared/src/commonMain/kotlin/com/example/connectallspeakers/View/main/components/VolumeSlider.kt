@@ -48,7 +48,7 @@ fun VolumeSlider(percent: Int, onPercentChange: (Int) -> Unit, modifier: Modifie
                 onValueChange = { onPercentChange(it.roundToInt().coerceIn(0, 100)) },
                 valueRange = 0f..100f, steps = 99, interactionSource = interaction,
                 modifier = Modifier.weight(1f).height(VolumeTouchHeight)
-                    .semantics { contentDescription = "App volume setting; playback not implemented" },
+                    .semantics { contentDescription = "Speaker app volume; does not change Windows volume" },
                 thumb = { Spacer(Modifier.size(0.dp)) },
                 track = { slider ->
                     Box(Modifier.fillMaxWidth().height(VolumeRailHeight).clip(shape)

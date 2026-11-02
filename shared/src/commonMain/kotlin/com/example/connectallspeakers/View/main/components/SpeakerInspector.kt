@@ -61,7 +61,7 @@ fun SpeakerInspector(speaker: RoomSpeaker?, hasSetup: Boolean, demoMode: Boolean
                 InspectorLabel("App volume")
                 VolumeSlider(speaker.volume, { onAction(MainAction.SetVolume(it)) })
                 WorkspaceButton("Test speaker", { onAction(MainAction.TestSpeaker) }, Modifier.fillMaxWidth(), Glyph.Play)
-                Text("Drag the speaker on the canvas\nto change its position.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
+                Text("Test plays a one-second tone at app volume.\nCanvas position does not change audio timing.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
                 speaker.output?.let { output ->
                     Text("Windows: ${output.displayName}\n${output.type.label()}${if (output.isDefault) " · Default output" else ""}",
                         color = C.Muted, style = MaterialTheme.typography.bodySmall)
@@ -73,7 +73,7 @@ fun SpeakerInspector(speaker: RoomSpeaker?, hasSetup: Boolean, demoMode: Boolean
             Text("Speaker tray", style = MaterialTheme.typography.titleMedium)
             Text(if (demoMode) "Add a sample to this room layout." else "Choose an available Windows output.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
             WorkspaceButton("Add speaker", { onAction(MainAction.OpenDialog(MainDialog.AddSpeaker)) }, Modifier.fillMaxWidth(), Glyph.Add, enabled = hasSetup)
-            Text(if (demoMode) "Demo — sample speakers" else "Discovery only — playback comes later", color = C.Muted, style = MaterialTheme.typography.labelSmall)
+            Text(if (demoMode) "Demo — sample speakers" else "Local WAV playback · up to two outputs", color = C.Muted, style = MaterialTheme.typography.labelSmall)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Demo mode", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                 Switch(demoMode, { onAction(MainAction.SetDemoMode(it)) },

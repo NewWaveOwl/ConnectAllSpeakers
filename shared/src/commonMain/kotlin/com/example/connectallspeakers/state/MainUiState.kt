@@ -6,6 +6,7 @@ import com.example.connectallspeakers.model.emptySetups
 import com.example.connectallspeakers.model.sampleSetups
 import com.example.connectallspeakers.data.audio.AudioOutputSnapshot
 import com.example.connectallspeakers.data.audio.AudioOutputStatus
+import com.example.connectallspeakers.model.audio.PlaybackSnapshot
 
 /** Lightweight modal destinations, confined to this screen. */
 enum class MainDialog { AddSetup, RenameSetup, DeleteSetup, AddSpeaker }
@@ -21,6 +22,7 @@ enum class MainDialog { AddSetup, RenameSetup, DeleteSetup, AddSpeaker }
  * @property testingSpeakerId Temporary visual-only test highlight.
  * @property demoMode Whether the user explicitly selected the isolated sample workspace.
  * @property outputs Current real-output discovery state; never replaced with demo fixtures.
+ * @property playback Platform playback state; no audio samples or local paths are exposed.
  */
 data class MainUiState(
     val setups: List<RoomSetup> = emptySetups(),
@@ -34,6 +36,7 @@ data class MainUiState(
     val demoMode: Boolean = false,
     val outputs: AudioOutputSnapshot = AudioOutputSnapshot(AudioOutputStatus.Unsupported,
         message = "Windows output discovery is unavailable on this platform."),
+    val playback: PlaybackSnapshot = PlaybackSnapshot(),
 ) {
     /** Active room, absent when all rooms have been deleted. */
     val selectedSetup: RoomSetup? get() = setups.find { it.id == selectedSetupId }

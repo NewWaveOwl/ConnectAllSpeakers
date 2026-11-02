@@ -14,6 +14,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import com.example.connectallspeakers.data.audio.windows.WindowsAudioOutputRepository
+import com.example.connectallspeakers.data.audio.windows.WindowsAudioPlaybackController
+import java.awt.FileDialog
+import java.io.File
 import java.awt.Dimension
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
@@ -27,18 +30,23 @@ private val MinimumWindowHeight = 480.dp
 /** Opens the desktop window; the application owner will manage native audio lifetime. */
 fun main() = application {
     val outputs = remember { WindowsAudioOutputRepository() }
+    val playback = remember(outputs) { WindowsAudioPlaybackController(outputs) }
     val applicationScope = rememberCoroutineScope()
     var closing by remember { mutableStateOf(false) }
-    DisposableEffect(outputs) { onDispose { outputs.close() } }
+    DisposableEffect(outputs, playback) { onDispose { playback.close(); outputs.close() } }
     val windowState = rememberWindowState(width = ReferenceWindowWidth, height = ReferenceWindowHeight)
     Window(
         onCloseRequest = {
             if (!closing) {
                 closing = true
-                applicationScope.launch { outputs.close(); outputs.awaitClosed(); exitApplication() }
+                applicationScope.launch {
+                    playback.close(); playback.awaitClosed()
+                    outputs.close(); outputs.awaitClosed()
+                    exitApplication()
+                }
             }
         },
-        title = "AllConnect — Windows audio outputs",
+        title = "AllConnect — Windows audio playback",
         state = windowState,
     ) {
         val density = LocalDensity.current
@@ -57,6 +65,14 @@ fun main() = application {
             window.addWindowListener(listener)
             onDispose { window.removeWindowListener(listener) }
         }
-        App(outputs)
+        App(outputs, playback) {
+            val picker = FileDialog(window, "Choose a local WAV file", FileDialog.LOAD)
+            try {
+                picker.file = "*.wav"
+                picker.isVisible = true
+                val name = picker.file
+                if (name != null) playback.loadFile(File(picker.directory, name).absolutePath)
+            } finally { picker.dispose() }
+        }
     }
 }
