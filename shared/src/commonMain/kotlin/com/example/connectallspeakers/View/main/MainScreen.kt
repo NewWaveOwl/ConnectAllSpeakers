@@ -20,7 +20,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.example.connectallspeakers.View.main.components.*
 import com.example.connectallspeakers.ViewModels.main.MainAction
-import com.example.connectallspeakers.model.RoomSetup
 import com.example.connectallspeakers.state.MainDialog
 import com.example.connectallspeakers.state.MainUiState
 import com.example.connectallspeakers.ui.theme.AllConnectColors as C
@@ -33,9 +32,9 @@ private val ScreenPadding = 24.dp
 private val InspectorWidth = 336.dp
 private val StackedBreakpoint = 1000.dp
 private val MinCanvasHeight = 360.dp
-private val WorkspaceChromeHeight = 360.dp
+private val WorkspaceChromeHeight = 540.dp
 
-/** Stateless main workspace, using only explicitly labeled sample data.
+/** Stateless room workspace, with real outputs and a separately labeled demo mode.
  * @param state Immutable session snapshot from the screen owner.
  * @param onAction User intent callback.
  * @param modifier Parent sizing.
@@ -50,12 +49,12 @@ fun MainScreen(state: MainUiState, onAction: (MainAction) -> Unit, modifier: Mod
             SetupToolbar(state, onAction)
             if (wide) {
                 Row(Modifier.fillMaxWidth().padding(ScreenPadding), horizontalArrangement = Arrangement.spacedBy(ScreenPadding)) {
-                    RoomColumn(state.selectedSetup, state.testingSpeakerId, onAction, Modifier.weight(1f), canvasHeight)
+                    RoomColumn(state, onAction, Modifier.weight(1f), canvasHeight)
                     SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, state.demoMode, onAction, Modifier.width(InspectorWidth))
                 }
             } else {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    RoomColumn(state.selectedSetup, state.testingSpeakerId, onAction, Modifier.fillMaxWidth(), canvasHeight)
+                    RoomColumn(state, onAction, Modifier.fillMaxWidth(), canvasHeight)
                     SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, state.demoMode, onAction, Modifier.fillMaxWidth())
                 }
             }
@@ -123,16 +122,16 @@ private fun SetupToolbar(state: MainUiState, onAction: (MainAction) -> Unit) {
     }
 }
 
-/** Room title, canvas and tools; handles a session with no remaining rooms.
- * @param room Active room or null.
- * @param testingSpeakerId Temporary highlight identity.
+/** Room title, playback, canvas and tools; handles a session with no remaining rooms.
+ * @param state Immutable room, transport and temporary highlight snapshot.
  * @param onAction User intent callback.
  * @param modifier Responsive column sizing.
  * @param canvasHeight Height derived from the window, in dp.
  */
 @Composable
-private fun RoomColumn(room: RoomSetup?, testingSpeakerId: String?, onAction: (MainAction) -> Unit,
+private fun RoomColumn(state: MainUiState, onAction: (MainAction) -> Unit,
     modifier: Modifier, canvasHeight: androidx.compose.ui.unit.Dp) {
+    val room = state.selectedSetup
     Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (room == null) {
             Text("Create your first setup", style = MaterialTheme.typography.headlineSmall)
@@ -151,7 +150,8 @@ private fun RoomColumn(room: RoomSetup?, testingSpeakerId: String?, onAction: (M
                     WorkspaceButton("Save setup", { onAction(MainAction.SaveSetup) }, Modifier.width(164.dp), Glyph.Save, primary = true)
                 }
             }
-            RoomCanvas(room, testingSpeakerId, onAction, Modifier.fillMaxWidth().height(canvasHeight))
+            PlaybackControls(state.playback, state.demoMode, onAction)
+            RoomCanvas(room, state.testingSpeakerId, onAction, Modifier.fillMaxWidth().height(canvasHeight))
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 TextButton({ onAction(MainAction.ResetPositions) }, contentPadding = PaddingValues(0.dp)) {

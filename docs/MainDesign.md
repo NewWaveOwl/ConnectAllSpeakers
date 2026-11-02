@@ -6,13 +6,17 @@ Start with Approach 1: one Windows PC connects directly to two Bluetooth speaker
 Our app processes and routes the audio using Windows APIs. No external mixer app,
 receiver phones or custom hardware is required by this design.
 
-**Status:** selected design; native playback is not implemented or hardware-verified.
+**Status:** experimental local WAV/MP3 rendering implemented. The user reports
+working playback on their Windows PC (November 1, 2026). Measured synchronization,
+broader hardware compatibility and release checks remain unverified.
 
 The current deliverable is a preceding [frontend prototype](FrontendPrototype.md):
 an interactive Windows workspace with active Core Audio output discovery and
 in-memory room state. Samples remain available in explicit Demo mode. Enumeration
 does not pair devices or produce audio; see [discovery](WindowsOutputDiscovery.md). The
-playback architecture and hardware milestones below remain future work.
+playback implementation and user-run checks are described in
+[WindowsPlayback](WindowsPlayback.md). The milestone checklist below still needs
+detailed device/driver and timing records beyond the user's working-playback report.
 
 ## How it works
 
@@ -30,7 +34,8 @@ Per-speaker processing is introduced after simultaneous playback is proven.
 
 The user pairs speakers in Windows, selects two outputs in our app, assigns
 Left/Right, checks each with a test sound, then plays a local audio file.
-Volume, mute, EQ and delay controls follow; saving groups requires later persistence.
+Linear app volume (including 0% mute) is implemented. EQ, delay and saved groups
+require later work; current room save snapshots exist only for the session.
 
 ## Code ownership
 

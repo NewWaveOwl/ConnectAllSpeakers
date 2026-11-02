@@ -23,7 +23,7 @@ data class RoomPosition(val x: Float, val y: Float)
  * @property id Stable, session-unique room instance identity.
  * @property name Editable display name.
  * @property channel Explicit app channel assignment; moving a card never changes it.
- * @property volume App volume in percent, from 0 to 100; no audio is produced.
+ * @property volume Linear app playback gain in percent, from 0 to 100; demo samples stay silent.
  * @property position Normalized top-left card travel.
  * @property homePosition Position restored by Reset positions.
  * @property output Windows endpoint metadata; null only for explicit demo samples.

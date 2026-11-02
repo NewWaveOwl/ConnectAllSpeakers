@@ -28,9 +28,10 @@ that cannot currently be established marks availability **Unknown**, preserving
 the distinction between a failure and a confirmed disconnect. Another endpoint,
 even with the same name, never replaces a missing assignment.
 
-Volume is an in-app setting only. Test speaker produces visual feedback and an
-explicit playback-not-implemented message. This milestone creates no playback
-streams, Bluetooth pairing feature, virtual driver or microphone access.
+Discovery itself creates no playback streams, pairing feature, virtual driver
+or microphone access. The current launcher separately injects experimental
+[local WAV/MP3 playback](WindowsPlayback.md), which applies app volume and can play
+an explicit test tone. The discovery verification record below predates playback.
 
 ## Ownership and native lifetime
 

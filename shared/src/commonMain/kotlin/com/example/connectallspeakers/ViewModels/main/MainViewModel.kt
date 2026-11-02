@@ -12,6 +12,9 @@ import com.example.connectallspeakers.model.audio.OutputAvailability
 import com.example.connectallspeakers.data.audio.AudioOutputRepository
 import com.example.connectallspeakers.data.audio.AudioOutputSnapshot
 import com.example.connectallspeakers.data.audio.AudioOutputStatus
+import com.example.connectallspeakers.data.audio.AudioPlaybackController
+import com.example.connectallspeakers.model.audio.PlaybackRoute
+import com.example.connectallspeakers.model.audio.MAX_PLAYBACK_OUTPUTS
 import com.example.connectallspeakers.state.MainDialog
 import com.example.connectallspeakers.state.MainUiState
 import kotlinx.coroutines.Job
@@ -27,26 +30,38 @@ import kotlin.math.round
 // Animation settings
 private const val TEST_HIGHLIGHT_MILLIS = 1400L
 
-/** Owns room edits and reconciles discovery metadata without any playback or persistence.
+/** Owns session edits and routes explicit playback requests to the platform controller.
  * @param initialState Optional deterministic session used by behavior tests.
  * @param outputRepository Platform discovery contract, or null on unsupported launchers.
  * @param collectionScope Optional test scope; production defaults to this ViewModel's lifetime.
+ * @param playbackController Application-owned audio engine, absent on unsupported launchers.
+ * @param chooseAudioFile Platform file-picker callback; cancellation leaves the source unchanged.
  */
 class MainViewModel(initialState: MainUiState = MainUiState(),
     private val outputRepository: AudioOutputRepository? = null,
     collectionScope: CoroutineScope? = null,
+    private val playbackController: AudioPlaybackController? = null,
+    private val chooseAudioFile: () -> Unit = {},
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(initialState.copy(outputs = outputRepository?.outputs?.value ?: initialState.outputs))
+    private val mutableState = MutableStateFlow(initialState.copy(outputs = outputRepository?.outputs?.value ?: initialState.outputs,
+        playback = playbackController?.playback?.value ?: initialState.playback))
     /** Read-only session state; immutable copies are emitted for every edit. */
     val state: StateFlow<MainUiState> = mutableState.asStateFlow()
     private var nextIdentity = 1L
     private var testJob: Job? = null
+    private var requestedTestEndpointId: String? = null
     private var inactiveSetups = if (initialState.demoMode) emptySetups() else sampleSetups()
     private var inactiveSelection: String? = "living"
     private var inactiveSaves: Map<String, RoomSetup> = emptyMap()
+    private val ownerScope = collectionScope ?: viewModelScope
 
     init {
-        if (outputRepository != null) (collectionScope ?: viewModelScope).launch {
+        if (playbackController != null) ownerScope.launch {
+            playbackController.playback.collect { playback ->
+                mutableState.update { it.copy(playback = playback) }
+            }
+        }
+        if (outputRepository != null) ownerScope.launch {
             outputRepository.outputs.collect { snapshot ->
                 if (state.value.demoMode) inactiveSetups = reconcileRooms(inactiveSetups, snapshot)
                 mutableState.update { current -> current.copy(outputs = snapshot,
@@ -55,10 +70,11 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         }
     }
 
-    /** Applies a user intent synchronously, except for the cancellable visual test timeout.
+    /** Applies edits synchronously and sends file/audio requests to their asynchronous platform owner.
      * @param action Intent from the view. Unknown IDs and non-finite moves are ignored.
      */
     fun onAction(action: MainAction) {
+        val before = state.value
         when (action) {
             is MainAction.SelectSetup -> if (state.value.setups.any { it.id == action.id }) {
                 mutableState.update { it.copy(selectedSetupId = action.id, dialog = null) }
@@ -87,6 +103,10 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
                     feedback = "${room.name} saved for this session.")
             } }
             MainAction.TestSpeaker -> testSpeaker()
+            MainAction.ChooseAudioFile -> if (!state.value.demoMode && playbackController != null) chooseAudioFile()
+            MainAction.Play -> play()
+            MainAction.Pause -> playbackController?.pause()
+            MainAction.Stop -> { requestedTestEndpointId = null; playbackController?.stop() }
             is MainAction.OpenDialog -> mutableState.update { it.copy(
                 dialog = action.dialog, dialogName = if (action.dialog == MainDialog.RenameSetup) it.selectedSetup?.name.orEmpty() else "",
                 dialogError = null,
@@ -100,6 +120,16 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             MainAction.RefreshOutputs -> outputRepository?.refresh()
             MainAction.DismissFeedback -> mutableState.update { it.copy(feedback = null) }
         }
+        val after = state.value
+        if (before.selectedSetupId != after.selectedSetupId || before.demoMode != after.demoMode ||
+            routes(before).map { it.endpointId }.toSet() != routes(after).map { it.endpointId }.toSet()) {
+            requestedTestEndpointId = null
+            playbackController?.stop()
+        } else if (action is MainAction.SetVolume || action is MainAction.AssignChannel) {
+            val latest = routes(after)
+            val testEndpoint = requestedTestEndpointId ?: after.playback.takeIf { it.isTestTone }?.activeEndpointIds?.singleOrNull()
+            playbackController?.updateRoutes(if (testEndpoint != null) latest.filter { it.endpointId == testEndpoint } else latest)
+        }
     }
 
     /** Updates only the active room atomically.
@@ -111,7 +141,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         }) }
     }
 
-    /** Updates only the selected sample in the active room.
+    /** Updates only the selected card in the active room.
      * @param transform Pure speaker transformation.
      */
     private fun editSelected(transform: (RoomSpeaker) -> RoomSpeaker) = editRoom { room ->
@@ -237,12 +267,48 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         return candidate
     }
 
-    /** Shows a timed visual pulse only; a new test cancels the previous timeout. */
+    /** @param snapshot Session to inspect. @return Real routes, preserving names/positions separately. */
+    private fun routes(snapshot: MainUiState): List<PlaybackRoute> = snapshot.selectedSetup?.speakers.orEmpty().mapNotNull { speaker ->
+        speaker.output?.let { PlaybackRoute(it.endpointId, speaker.channel, speaker.volume) }
+    }
+
+    /** Validates the entire room rather than silently omitting unavailable/demo/extra outputs. */
+    private fun play() {
+        val current = state.value
+        val speakers = current.selectedSetup?.speakers.orEmpty()
+        val error = when {
+            playbackController == null -> "Playback is available in the Windows desktop app only."
+            current.demoMode -> "Demo speakers cannot play audio. Switch Demo mode off and select real outputs."
+            speakers.size !in 1..MAX_PLAYBACK_OUTPUTS -> "Add one or two real outputs to this room for playback."
+            speakers.any { it.isSample || it.availability != OutputAvailability.Active } -> "Every room output must be available before playback."
+            current.outputs.status != AudioOutputStatus.Ready -> "Refresh outputs successfully before playback."
+            else -> null
+        }
+        if (error != null) mutableState.update { it.copy(feedback = error) }
+        else {
+            requestedTestEndpointId = null
+            playbackController?.play(routes(current))
+        }
+    }
+
+    /** Sends an explicit real-device test request and shows a cancellable visual pulse. */
     private fun testSpeaker() {
-        val id = state.value.selectedSpeaker?.id ?: return
+        val selected = state.value.selectedSpeaker ?: return
+        val output = selected.output
+        if (state.value.demoMode || output == null || playbackController == null) {
+            mutableState.update { it.copy(feedback = "Demo speakers cannot play audio. Select a real Windows output to test.") }
+            return
+        }
+        if (output.availability != OutputAvailability.Active || state.value.outputs.status != AudioOutputStatus.Ready) {
+            mutableState.update { it.copy(feedback = "This output is unavailable. Reconnect it and refresh before testing.") }
+            return
+        }
+        val id = selected.id
         testJob?.cancel()
-        mutableState.update { it.copy(testingSpeakerId = id, feedback = "Audio testing is not available yet. Playback is not implemented.") }
-        testJob = viewModelScope.launch {
+        requestedTestEndpointId = output.endpointId
+        playbackController.testSpeaker(PlaybackRoute(output.endpointId, selected.channel, selected.volume))
+        mutableState.update { it.copy(testingSpeakerId = id, feedback = "Test tone requested for ${selected.name}. App volume: ${selected.volume}%.") }
+        testJob = ownerScope.launch {
             delay(TEST_HIGHLIGHT_MILLIS)
             mutableState.update { it.copy(testingSpeakerId = null) }
         }

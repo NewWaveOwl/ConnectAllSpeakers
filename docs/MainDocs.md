@@ -13,9 +13,14 @@ sample speakers, inspector edits, bounded dragging, snap/zoom/reset, setup dialo
 and session-only save snapshots work locally. Windows now supplies real active
 playback endpoints through a Core Audio repository with queued device-change
 notifications. Room settings stay separate from endpoint metadata. Samples are
-isolated behind explicit Demo mode. Native playback, persistent profiles, EQ/delay,
-synchronization and surround remain planned. See [FrontendPrototype](FrontendPrototype.md)
-and [WindowsOutputDiscovery](WindowsOutputDiscovery.md) for behavior and validation.
+isolated behind explicit Demo mode. Experimental local WAV/MP3 playback now routes
+to one or two selected endpoints with app gain, channel mapping and explicit
+Play/Pause/Stop/Test controls. The user reports playback works on their Windows PC;
+measured timing and broader hardware compatibility remain unverified.
+Persistence, EQ/delay, synchronization and surround
+remain planned. See [FrontendPrototype](FrontendPrototype.md),
+[WindowsOutputDiscovery](WindowsOutputDiscovery.md) and
+[WindowsPlayback](WindowsPlayback.md) for scope, limits and the manual checklist.
 
 Selected playback approach: [MainDesign — direct Windows playback](MainDesign.md).
 Future system-audio input: [AllConnect virtual Windows output](WindowsVirtualOutput.md).
@@ -57,6 +62,8 @@ ConnectAllSpeakers/                 repository / Gradle root
   desktopApp/src/main/kotlin/com/example/connectallspeakers/
     main.kt                        Windows desktop composition/window lifecycle
     audio/windows/                 Core Audio COM calls and notification bindings
+    audio/wasapi/                  shared-mode rendering and native lifetime
+    audio/dsp/                     bounded WAV/MP3 decoding, source routing and gain
     data/audio/windows/            single-worker discovery repository and cleanup
   androidApp/src/main/             retained Android launcher
   webApp/src/webMain/              retained web launcher; not an active audio target
@@ -94,12 +101,12 @@ View action -> ViewModel -> shared repository contract
 Repository state -> immutable UI state -> shared View
 ```
 
-This flow is implemented for output discovery: `MainViewModel` observes the
-platform-neutral `AudioOutputRepository` contract; Windows owns its Core Audio
-implementation. App.kt assembles shared rendering and the scoped ViewModel.
-main.kt creates the repository, begins nonblocking shutdown, awaits native cleanup
-and exits. Common launchers without a Windows repository expose Unsupported;
-they do not silently substitute sample devices.
+This flow is implemented for discovery and playback: `MainViewModel` observes
+`AudioOutputRepository` and `AudioPlaybackController`; Windows owns their native
+implementations. App.kt assembles shared rendering and the scoped ViewModel.
+main.kt supplies the native file chooser and awaits playback cleanup before
+discovery cleanup on normal exit. Common launchers without Windows services
+expose Unsupported; they do not silently substitute sample devices.
 For stereo, the engine opens two independent active outputs and maps source left
 and right deliberately. Common code cannot import WASAPI, COM or Java Sound.
 
@@ -129,8 +136,9 @@ requires its own build/install/clean-machine verification before release.
 
 ## Delivery sequence and acceptance
 
-The frontend prototype precedes the hardware sequence below. It validates local
-interaction and presentation only, and does not establish any playback capability.
+The frontend and offline-tested renderer precede the hardware sequence below.
+Implemented code and successful builds do not establish audible output or timing.
+The user explicitly owns hardware checks; follow [WindowsPlayback](WindowsPlayback.md).
 
 1. **Hardware feasibility:** enumerate real Windows audio endpoints, open two
    simultaneous render streams and play distinguishable signals. Pairing alone

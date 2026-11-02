@@ -31,7 +31,7 @@ fun AudioOutputPicker(state: MainUiState, onAction: (MainAction) -> Unit) {
     val snapshot = state.outputs
     Column(verticalArrangement = Arrangement.spacedBy(OutputRowGap)) {
         Text("Windows playback outputs", style = MaterialTheme.typography.titleMedium)
-        Text("Present and enabled outputs only. Microphones are excluded. Playback is not implemented.", style = MaterialTheme.typography.bodySmall)
+        Text("Present and enabled outputs only. Microphones are excluded. Add up to two outputs to a playback room.", style = MaterialTheme.typography.bodySmall)
         WorkspaceButton("Refresh outputs", { onAction(MainAction.RefreshOutputs) }, enabled = snapshot.status != AudioOutputStatus.Loading)
         when (snapshot.status) {
             AudioOutputStatus.Loading -> {
