@@ -4,7 +4,7 @@ The original sample-only screen is retained in explicit **Demo mode**. The curre
 Windows launcher starts with empty real-device rooms and uses
 [Core Audio output discovery](WindowsOutputDiscovery.md); it never silently falls
 back to samples. The current launcher also injects experimental
-[local WAV playback](WindowsPlayback.md); its hardware checks are explicitly
+[local WAV/MP3 playback](WindowsPlayback.md); its hardware checks are explicitly
 user-run. The historical prototype verification below remains distinct.
 
 This is an interactive Windows Compose Multiplatform/Material 3 workspace.

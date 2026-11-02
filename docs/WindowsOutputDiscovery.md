@@ -30,7 +30,7 @@ even with the same name, never replaces a missing assignment.
 
 Discovery itself creates no playback streams, pairing feature, virtual driver
 or microphone access. The current launcher separately injects experimental
-[local WAV playback](WindowsPlayback.md), which applies app volume and can play
+[local WAV/MP3 playback](WindowsPlayback.md), which applies app volume and can play
 an explicit test tone. The discovery verification record below predates playback.
 
 ## Ownership and native lifetime

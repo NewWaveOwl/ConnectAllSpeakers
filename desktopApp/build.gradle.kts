@@ -13,6 +13,7 @@ dependencies {
     implementation(libs.kotlinx.coroutinesSwing)
     implementation(libs.jna.core)
     implementation(libs.jna.platform)
+    implementation(libs.jlayer)
     testImplementation(libs.kotlin.testJunit)
     testImplementation(libs.kotlinx.coroutinesTest)
 

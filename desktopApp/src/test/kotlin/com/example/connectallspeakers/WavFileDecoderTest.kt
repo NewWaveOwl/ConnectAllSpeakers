@@ -2,6 +2,7 @@ package com.example.connectallspeakers
 
 import com.example.connectallspeakers.audio.dsp.WavFileDecoder
 import com.example.connectallspeakers.audio.dsp.WavFileException
+import com.example.connectallspeakers.audio.dsp.LocalAudioFileDecoder
 import kotlinx.coroutines.CancellationException
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
@@ -100,5 +101,12 @@ class WavFileDecoderTest {
         assertFailsWith<WavFileException> { decode(withTail) }
         assertFailsWith<WavFileException> { decode(wave(chunk("fmt ", format() + le(2) { putShort(22) }),
             chunk("data", byteArrayOf(0, 0)))) }
+    }
+    @Test fun combinedDecoderRetainsWavSupportAndDetectsByContent() {
+        val path = folder.newFile("check.mp3").apply { writeBytes(wave(chunk("fmt ", format()),
+            chunk("data", le(4) { putShort(16384); putShort(-16384) }))) }
+        val result = LocalAudioFileDecoder().decode(path.path) { false }
+        assertEquals(8_000, result.sampleRate)
+        assertContentEquals(floatArrayOf(.5f, -.5f), result.samples)
     }
 }

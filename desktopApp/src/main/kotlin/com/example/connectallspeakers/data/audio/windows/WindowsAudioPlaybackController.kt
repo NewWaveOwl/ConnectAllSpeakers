@@ -2,7 +2,7 @@ package com.example.connectallspeakers.data.audio.windows
 
 import com.example.connectallspeakers.audio.dsp.AudioFileDecoder
 import com.example.connectallspeakers.audio.dsp.DecodedAudio
-import com.example.connectallspeakers.audio.dsp.WavFileDecoder
+import com.example.connectallspeakers.audio.dsp.LocalAudioFileDecoder
 import com.example.connectallspeakers.audio.dsp.speakerTestTone
 import com.example.connectallspeakers.audio.wasapi.PlaybackDeviceSession
 import com.example.connectallspeakers.audio.wasapi.PlaybackRenderSession
@@ -38,7 +38,7 @@ class WindowsAudioPlaybackController internal constructor(
     /** Production assembly. Native APIs remain lazy until explicit Play/Test.
      * @param outputs Application-owned Windows discovery repository, outliving this controller.
      */
-    constructor(outputs: AudioOutputRepository) : this(outputs, WavFileDecoder(), { WasapiDeviceSession() }, newWorker())
+    constructor(outputs: AudioOutputRepository) : this(outputs, LocalAudioFileDecoder(), { WasapiDeviceSession() }, newWorker())
 
     private constructor(outputs: AudioOutputRepository, decoder: AudioFileDecoder,
         deviceFactory: () -> PlaybackDeviceSession, worker: ExecutorCoroutineDispatcher) :
@@ -48,7 +48,7 @@ class WindowsAudioPlaybackController internal constructor(
         val routes: List<PlaybackRoute> = emptyList())
     private enum class Kind { Load, Play, Pause, Stop, Test }
     private val mutablePlayback = MutableStateFlow(PlaybackSnapshot(PlaybackPhase.Empty,
-        message = "Choose a local WAV file. Playback starts only when you press Play."))
+        message = "Choose a local WAV or MP3 file. Playback starts only when you press Play."))
     override val playback = mutablePlayback.asStateFlow()
     private val closed = AtomicBoolean(false)
     private val generation = AtomicLong()
@@ -89,7 +89,7 @@ class WindowsAudioPlaybackController internal constructor(
         }
     }
 
-    /** @param path User-selected local WAV path. Loading closes the current session; never auto-plays. */
+    /** @param path User-selected local WAV/MP3 path. Loading closes the current session; never auto-plays. */
     override fun loadFile(path: String) { enqueue(Kind.Load, path = path) }
     /** @param routes One or two unique explicitly selected, currently active render endpoints. */
     override fun play(routes: List<PlaybackRoute>) {
@@ -137,7 +137,7 @@ class WindowsAudioPlaybackController internal constructor(
             when (command.kind) {
                 Kind.Load -> {
                     releaseSession()
-                    publish(PlaybackPhase.Loading, "Reading WAV file…")
+                    publish(PlaybackPhase.Loading, "Reading audio file…")
                     val decoded = decoder.decode(requireNotNull(command.path)) { stale(command.epoch) }
                     checkCurrent(command.epoch)
                     source = decoded
@@ -149,7 +149,7 @@ class WindowsAudioPlaybackController internal constructor(
                         session!!.resume { checkCurrent(command.epoch) }
                         paused = false
                         publish(PlaybackPhase.Playing, "Playing · timing is not calibrated.", session!!.positionMillis)
-                    } else start(command, source ?: error("Choose a WAV file first."), false)
+                    } else start(command, source ?: error("Choose a WAV or MP3 file first."), false)
                 }
                 Kind.Test -> start(command, speakerTestTone(), true)
                 Kind.Pause -> if (session != null) {

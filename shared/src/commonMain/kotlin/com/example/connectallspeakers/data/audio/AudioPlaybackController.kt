@@ -9,7 +9,7 @@ interface AudioPlaybackController {
     /** Current immutable lifecycle, source and failure state. */
     val playback: StateFlow<PlaybackSnapshot>
 
-    /** Loads a user-selected local WAV off the UI thread; never starts playback automatically.
+    /** Loads a user-selected local WAV or MP3 off the UI thread; never starts playback automatically.
      * @param path Native file path returned by the platform file picker.
      */
     fun loadFile(path: String)

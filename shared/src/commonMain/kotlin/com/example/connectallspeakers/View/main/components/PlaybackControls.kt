@@ -37,9 +37,9 @@ fun PlaybackControls(playback: PlaybackSnapshot, demoMode: Boolean, onAction: (M
     val paused = playback.phase == PlaybackPhase.Paused
     Column(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, RoundedCornerShape(PanelCorner))
         .padding(TransportPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Local WAV playback · experimental", style = MaterialTheme.typography.titleSmall)
+        Text("WAV / MP3 playback · experimental", style = MaterialTheme.typography.titleSmall)
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(TransportGap)) {
-            WorkspaceButton("Choose WAV", { onAction(MainAction.ChooseAudioFile) }, enabled = supported && !busy)
+            WorkspaceButton("Choose audio", { onAction(MainAction.ChooseAudioFile) }, enabled = supported && !busy)
             WorkspaceButton(if (paused && !playback.isTestTone) "Resume" else "Play", { onAction(MainAction.Play) },
                 glyph = Glyph.Play, primary = true, enabled = supported && !busy && !running && playback.source != null && !playback.isTestTone)
             WorkspaceButton("Pause", { onAction(MainAction.Pause) }, enabled = supported && running && !playback.isTestTone)

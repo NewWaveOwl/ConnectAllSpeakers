@@ -2,15 +2,24 @@
 
 ## Implemented scope
 
-On Windows 10/11, local WAV playback can target one or two explicitly assigned render
-endpoints. The shared screen offers Choose WAV, Play/Resume, Pause, Stop, source
+On Windows 10/11, local WAV/MP3 playback can target one or two explicitly assigned render
+endpoints. The shared screen offers Choose audio, Play/Resume, Pause, Stop, source
 position and durable errors. Choosing a file never starts playback. Demo mode
 never produces sound. Android and other launchers expose Unsupported.
 
 Supported files: little-endian RIFF/WAVE, mono/stereo, 8–192 kHz, PCM16/24/32 or
 IEEE float32, including standard extensible PCM/float. Sample data is limited to
 64 MiB and decoded into worker-owned memory; files are closed after loading.
-Compressed WAV, MP3, AAC, FLAC, RF64/RIFX, multichannel layouts, empty/truncated
+MP3 supports MPEG-1/2/2.5 Layer III, mono/stereo, 8–48 kHz, CBR and VBR.
+Compressed input is limited to 64 MiB; decoded PCM16-equivalent data is also
+limited to 64 MiB (about 5 minutes 49 seconds at 48 kHz stereo). Leading ID3v2.2,
+2.3/2.4 and trailing ID3v1/v2 metadata are skipped without allocating their bodies.
+Free-format bitrates, other MPEG layers, format-changing concatenation and unknown
+trailing data/tag formats are rejected. MP3 encoder delay/padding is retained;
+duration and tone boundaries may be slightly longer/later than the original WAV.
+Use WAV as the precise channel/timing reference.
+
+Compressed WAV, AAC, FLAC, RF64/RIFX, multichannel layouts, empty/truncated
 data and non-finite float samples are rejected. A failed load retains the prior
 valid file, with an explicit error; it never silently resumes that file.
 
@@ -53,8 +62,16 @@ compatibility remain unverified until the user performs the checks below.
 `AudioPlaybackController` and immutable `PlaybackSnapshot`/`PlaybackRoute` are
 portable shared contracts. `MainViewModel` validates the whole room and sends
 explicit intents; stateless controls render state. Desktop owns the native file
-chooser and `WindowsAudioPlaybackController`. No additional dependencies were
-added; the existing Apache-licensed JNA 5.19.1 binding is reused.
+chooser and `WindowsAudioPlaybackController`. The existing Apache-licensed JNA
+5.19.1 binding is reused. MP3 adds the desktop-only pure-Java decoder
+`javazoom:jlayer:1.0.1`, pinned in the catalog. Its player/Java Sound APIs are never
+used: decoded PCM goes through the existing explicit WASAPI routes.
+
+The published binary and source archive were reviewed. JLayer remains an
+unmodified, separate, replaceable JAR in the Windows app image. Its LGPL 2.1 text,
+attribution/replacement notice, published Maven POM and corresponding source JAR
+are bundled under desktop resources `licenses/jlayer/`. The source/binary SHA-256
+values are recorded there. No external player or encoder is required at runtime.
 
 The controller owns one dedicated MTA worker, a bounded conflated command queue,
 command generations and an atomic latest-settings snapshot. File decoding and
@@ -111,11 +128,12 @@ app-image directory must stay together; this is not an MSI installation.
 | Stop/finish | Stop, then Play; also let the file finish naturally. | Stop resets to zero and releases streams. Final buffers drain before finished. Play after Stop/finish starts at zero. No automatic replay. |
 | Test speaker | Select B and press Test speaker while the file is playing. | File stops. Only B emits a one-second 440 Hz tone scaled by B's app volume. File remains selected and does not resume. At 0% the test is silent. |
 | Mono/resampling | Repeat with `mono-identification-48000.wav` on Left, Right and Mono, and with `stereo-identification-44100.wav`. | Mono source is present on either channel assignment. The 44.1 kHz file has the same pitch/timeline through Windows conversion, or an explicit format error; never a different output. |
+| MP3 sound check | Choose audio, select `stereo-identification-48000.mp3` or your own mono/stereo MP3, then Play. Repeat volume, channel, pause/stop and disconnect checks. | Selecting is silent; Play uses exactly the room's outputs and settings. The generated file has the same left/right pattern, with a small encoder delay/padding. The source name ends in `.mp3`. Test speaker still uses its separate one-second tone. |
 | Disconnect | During two-output playback, turn off/disconnect B. Repeat while paused. | Both streams stop with an error; B's card becomes Unavailable after notification/refresh. Names, channels, positions and app volumes remain. Some buffered sound may trail the disconnect. |
 | Reconnect | Reconnect B; wait for its card to become available, then press Play. | No sound resumes automatically. Same endpoint card keeps edits; explicit Play restarts at zero. If Windows creates a different endpoint ID, select it explicitly in a new room; it must not replace the old ID automatically. |
 | Rooms/demo | During playback switch rooms or enable Demo mode. Then return. | Playback stops. Each room retains independent edits. Demo cannot produce sound or choose files; Test explains that samples cannot play. Real rooms are retained. Return requires explicit Play. |
 | Layout | During playback rename/select/drag a card, toggle snap, zoom and reset positions. Resize and use Tab/Enter/Space on transport. | Audio route is unchanged by geometry/name edits; controls stay reachable via scrolling, with visible keyboard focus. |
-| Bad input | Choose `invalid-header.wav`, a compressed file renamed `.wav`, or a WAV over 64 MiB of sample data. Cancel the chooser separately. | Clear error, no audio/new native session; the prior valid source remains selected. Cancel does not change source/state. No silent fallback to another file or output. |
+| Bad input | Choose `invalid-header.wav`, an AAC file renamed `.mp3`, a truncated MP3, or an oversized WAV/MP3. Cancel the chooser separately. | Clear error, no audio/new native session; the prior valid source remains selected. Cancel does not change source/state. Formats are detected by signature: a valid MP3 renamed `.wav` is supported. No silent fallback to another file or output. |
 | Too many outputs | In a separate room add three outputs and press Play. | Whole-room validation rejects the request; it must not silently play just two. Use a fresh room with at most two outputs to continue. |
 | Close/reopen | Close during playback, pause and file loading, then reopen. | App exits without hanging/crashing; audio stops after any hardware-buffer tail. New launch has empty real rooms and no selected file, with no automatic playback. |
 
@@ -128,6 +146,22 @@ do not label outputs synchronized based on this renderer. Report underrun/error
 text and which output combinations/formats fail. Longer reliability and acoustic
 timing measurements remain separate release work.
 
+### Generating MP3 check files without playback
+
+The manual MP3 files are already generated under `build/manual-tests`. To
+regenerate them, the optional development-only encoder is used as follows:
+
+```powershell
+python -m pip install --no-deps --target .local-tmp/mp3-fixture-tools lameenc==1.9.0
+python tools/generate_playback_test_files.py --mp3 --encoder-directory .local-tmp/mp3-fixture-tools
+```
+
+This writes MP3 copies of the same original 12-second signals; nothing is played.
+The encoder is neither packaged nor invoked by the app. Normal playback only
+needs the app and a user-selected WAV/MP3 file. Short original CBR/VBR unit-test
+fixtures and their reproduction instructions are under
+`desktopApp/src/test/resources/audio/`; no music or recordings were downloaded.
+
 ## Offline verification
 
 Run `:desktopApp:compileKotlin :shared:jvmTest :desktopApp:test :androidApp:assembleDebug`.
@@ -136,10 +170,13 @@ never instantiate the WASAPI implementation or produce sound. They cover known
 channel samples/gain, supported/malformed WAVs, cancellation, exact IDs, partial
 initialization/start failure, pause/resume, EOF draining, underruns, cleanup,
 disconnect/reconnect, discovery failures and shared room validation/actions.
+MP3 tests additionally decode real original MPEG-1/2/2.5 fixtures, check channel
+identity, CBR/VBR, metadata skipping, signature dispatch, size/truncation guards,
+cancellation, and file-to-fake-output transport with failed-load cleanup.
 Build/test results are recorded in the delivery report. Native playback, current
 visual UI, MSI installation and clean-machine execution remain user checks.
 
-### Verification record — November 1, 2026
+### WAV checkpoint verification — November 1, 2026
 
 - `:desktopApp:compileKotlin`, `:shared:jvmTest`, `:desktopApp:test`,
   `:androidApp:assembleDebug` and `:desktopApp:createDistributable`: **passed**.
@@ -160,6 +197,37 @@ visual UI, MSI installation and clean-machine execution remain user checks.
 - No hardware, audible playback, current visual UI, MSI install, clean-machine,
   real endpoint cleanup or acoustic synchronization checks were performed.
 
+### MP3 addition verification — November 1, 2026
+
+- The preceding WAV implementation was committed separately as `0b384fe` before
+  MP3 edits. MP3 support was added afterward on the same task branch.
+- Desktop compilation, shared JVM tests, desktop tests, Android `assembleDebug`
+  and Windows `createDistributable`: **passed**.
+- Shared: **26 passed** in 5 suites. Desktop: **52 passed** in 8 suites, including
+  11 new MP3/combined-decoder regression tests. Zero failures, errors or skips.
+- Real generated MP3 fixtures verified MPEG-1 CBR/VBR stereo, MPEG-2/2.5 mono,
+  left/right identity, finite bounded PCM, metadata handling, signature dispatch,
+  input/decoded size guards, truncated/unsupported input, cancellation and cleanup.
+  Controller coverage uses fake output devices exclusively.
+- Generated MP3 copies of the original manual WAV signals under
+  `build/manual-tests`. Encoding writes files only; no sound was played.
+- Inspected the rebuilt Windows app image for decoder classes and JLayer's
+  separate JAR; its SHA-256 matches the reviewed published binary. Verified the
+  license, notice, POM and matching corresponding source archive in resources.
+  The development encoder is absent from the app image.
+- Existing Android SDK XML, native-library stripping and test non-null assertion
+  warnings remain. Existing dependency versions were preserved; only the new
+  desktop decoder was added.
+- No app launch, hardware, audible, current visual or MSI install checks were run.
+
+### User confirmation — November 1, 2026
+
+The user reports that everything works after their manual checks and requested
+the playback PR. This is user-reported working playback on their Windows PC;
+the agent did not run hardware or audible checks. Device models, driver/format
+details and measured timing were not supplied, so the report does not establish
+broader compatibility, calibrated synchronization or an exhaustive checklist pass.
+
 ### Changed implementation areas
 
 | Area | Files |
@@ -167,10 +235,10 @@ visual UI, MSI installation and clean-machine execution remain user checks.
 | Shared contract/models | `data/audio/AudioPlaybackController.kt`, `model/audio/Playback.kt`, `model/RoomSetup.kt`, `state/MainUiState.kt` |
 | Shared screen/actions | `App.kt`, `ViewModels/main/MainViewModel.kt`, `MainAction.kt`, `View/main/MainScreen.kt`, components `PlaybackControls.kt`, `SpeakerInspector.kt`, `VolumeSlider.kt`, `AudioOutputPicker.kt` |
 | Windows assembly/control | desktop `main.kt`, `data/audio/windows/WindowsAudioPlaybackController.kt` |
-| Decoder/processing | desktop `audio/dsp/DecodedAudio.kt`, `WavFileDecoder.kt`, `ChannelRenderer.kt` |
+| Decoder/processing | desktop `audio/dsp/AudioFileDecoder.kt`, `LocalAudioFileDecoder.kt`, `DecodedAudio.kt`, `WavFileDecoder.kt`, `Mp3FileDecoder.kt`, `Mp3FrameLayout.kt`, `ChannelRenderer.kt` |
 | Native rendering | desktop `audio/wasapi/WasapiDeviceSession.kt`, `PlaybackDeviceSession.kt`, `PlaybackRenderSession.kt` |
-| Offline coverage | shared `PlaybackStateTest.kt`; desktop `ChannelRendererTest.kt`, `WavFileDecoderTest.kt`, `PlaybackRenderSessionTest.kt`, `WindowsAudioPlaybackControllerTest.kt`, test-only `PlaybackFakes.kt` |
-| Manual fixtures/documentation | `tools/generate_playback_test_files.py`, this checklist, `MainDocs.md`, `MainDesign.md`, `FrontendPrototype.md`, `WindowsOutputDiscovery.md` |
+| Offline coverage | shared `PlaybackStateTest.kt`; desktop `ChannelRendererTest.kt`, `WavFileDecoderTest.kt`, `Mp3FileDecoderTest.kt`, `Mp3PlaybackControllerTest.kt`, `PlaybackRenderSessionTest.kt`, `WindowsAudioPlaybackControllerTest.kt`, test-only `PlaybackFakes.kt` |
+| Manual fixtures/documentation | `tools/generate_playback_test_files.py`, `tools/generate_mp3_test_fixtures.py`, original MP3 fixtures under desktop test resources, this checklist, `MainDocs.md`, `MainDesign.md`, `FrontendPrototype.md`, `WindowsOutputDiscovery.md` |
 
 ## Primary API references
 
@@ -179,3 +247,5 @@ visual UI, MSI installation and clean-machine execution remain user checks.
 - [Microsoft automatic PCM conversion and quality flags](https://learn.microsoft.com/en-us/windows/win32/coreaudio/audclnt-streamflags-xxx-constants)
 - [Microsoft IAudioRenderClient GetBuffer ownership](https://learn.microsoft.com/en-us/windows/win32/api/audioclient/nf-audioclient-iaudiorenderclient-getbuffer)
 - [Microsoft IAudioClient Stop](https://learn.microsoft.com/en-us/windows/win32/api/audioclient/nf-audioclient-iaudioclient-stop)
+- [JLayer published artifact and license metadata](https://central.sonatype.com/artifact/javazoom/jlayer/1.0.1)
+- [ID3v2.4 header/footer and checked tag sizes](https://id3.org/id3v2.4.0-structure)

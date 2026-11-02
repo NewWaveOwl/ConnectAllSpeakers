@@ -13,10 +13,11 @@ sample speakers, inspector edits, bounded dragging, snap/zoom/reset, setup dialo
 and session-only save snapshots work locally. Windows now supplies real active
 playback endpoints through a Core Audio repository with queued device-change
 notifications. Room settings stay separate from endpoint metadata. Samples are
-isolated behind explicit Demo mode. Experimental local WAV playback now routes
+isolated behind explicit Demo mode. Experimental local WAV/MP3 playback now routes
 to one or two selected endpoints with app gain, channel mapping and explicit
-Play/Pause/Stop/Test controls. Native hardware playback is **unverified**; the user
-will perform those checks. Persistence, EQ/delay, synchronization and surround
+Play/Pause/Stop/Test controls. The user reports playback works on their Windows PC;
+measured timing and broader hardware compatibility remain unverified.
+Persistence, EQ/delay, synchronization and surround
 remain planned. See [FrontendPrototype](FrontendPrototype.md),
 [WindowsOutputDiscovery](WindowsOutputDiscovery.md) and
 [WindowsPlayback](WindowsPlayback.md) for scope, limits and the manual checklist.
@@ -62,7 +63,7 @@ ConnectAllSpeakers/                 repository / Gradle root
     main.kt                        Windows desktop composition/window lifecycle
     audio/windows/                 Core Audio COM calls and notification bindings
     audio/wasapi/                  shared-mode rendering and native lifetime
-    audio/dsp/                     bounded WAV decoding, source routing and gain
+    audio/dsp/                     bounded WAV/MP3 decoding, source routing and gain
     data/audio/windows/            single-worker discovery repository and cleanup
   androidApp/src/main/             retained Android launcher
   webApp/src/webMain/              retained web launcher; not an active audio target

@@ -1,0 +1,27 @@
+JLayer 1.0.1 — MP3 decoder/player/converter library for Java
+Published by JavaZOOM; decoder portions include work by Tobias Bading,
+Berlin University of Technology, Jeff Tsay and the contributors identified in
+the corresponding source headers.
+
+Only the decoder API is used. The published binary is unmodified and remains
+a separate, replaceable JAR in the desktop application's app directory.
+JLayer is distributed under GNU Library GPL version 2 or, at your option,
+any later version; the LGPL 2.1 license text is included as LGPL-2.1.txt.
+
+Corresponding source is included unmodified as jlayer-1.0.1-sources.jar beside
+this notice inside the desktop resource archive. The published Maven POM is
+included separately as jlayer-1.0.1.pom. Extract the source archive into
+src/main/java beneath that POM before rebuilding with Maven; preserve its
+serialized decoder tables alongside the Java sources.
+Modifying/replacing this library and reverse engineering for debugging such
+modifications are permitted by the accompanying license. Preserve its classpath
+filename from the launcher configuration when replacing the JAR.
+
+Published artifacts and source:
+https://repo.maven.apache.org/maven2/javazoom/jlayer/1.0.1/
+https://central.sonatype.com/artifact/javazoom/jlayer/1.0.1
+
+SHA-256 of the unmodified binary JAR:
+850508c837454a1b06017c32a36876fae516de1e89a829f725fee1e6dcc52000
+SHA-256 of the accompanying published sources JAR:
+ecde410fc8940ab5d8d5a1d5c585870a3a194f4001701e66a27b8dd8cb7b75ce

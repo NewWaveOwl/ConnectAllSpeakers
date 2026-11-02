@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 import struct
 import wave
+import sys
 
 
 def write_wave(path: Path, rate: int, channels: int, seconds: int) -> None:
@@ -35,6 +36,8 @@ def main() -> None:
     """Generate fixtures only; the user chooses when and where to listen."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--long", action="store_true", help="Also create a 180-second timing-observation file")
+    parser.add_argument("--mp3", action="store_true", help="Also encode MP3 copies using a development-only lameenc installation")
+    parser.add_argument("--encoder-directory", type=Path, help="Directory containing the optional development encoder")
     args = parser.parse_args()
     destination = Path(__file__).resolve().parents[1] / "build" / "manual-tests"
     destination.mkdir(parents=True, exist_ok=True)
@@ -49,6 +52,26 @@ def main() -> None:
     if args.long:
         write_wave(destination / "stereo-timing-180s.wav", 48000, 2, 180)
         print(destination / "stereo-timing-180s.wav")
+    if args.mp3:
+        if args.encoder_directory:
+            sys.path.insert(0, str(args.encoder_directory.resolve()))
+        try:
+            import lameenc
+        except ImportError:
+            parser.error("--mp3 requires development-only lameenc; see docs/WindowsPlayback.md")
+        for path in sorted(destination.glob("*-identification-*.wav")) + ([destination / "stereo-timing-180s.wav"] if args.long else []):
+            with wave.open(str(path), "rb") as source:
+                encoder = lameenc.Encoder()
+                encoder.silence()
+                encoder.set_in_sample_rate(source.getframerate())
+                encoder.set_out_sample_rate(source.getframerate())
+                encoder.set_channels(source.getnchannels())
+                encoder.set_bit_rate(128)
+                encoder.set_quality(2)
+                encoded = encoder.encode(source.readframes(source.getnframes())) + encoder.flush()
+            target = path.with_suffix(".mp3")
+            target.write_bytes(encoded)
+            print(target)
     print("Generated files only. No audio device was opened and nothing was played.")
 
 

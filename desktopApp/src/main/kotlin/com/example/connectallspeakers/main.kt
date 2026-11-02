@@ -66,9 +66,9 @@ fun main() = application {
             onDispose { window.removeWindowListener(listener) }
         }
         App(outputs, playback) {
-            val picker = FileDialog(window, "Choose a local WAV file", FileDialog.LOAD)
+            val picker = FileDialog(window, "Choose a local WAV or MP3 file", FileDialog.LOAD)
             try {
-                picker.file = "*.wav"
+                picker.file = "*.wav;*.mp3"
                 picker.isVisible = true
                 val name = picker.file
                 if (name != null) playback.loadFile(File(picker.directory, name).absolutePath)

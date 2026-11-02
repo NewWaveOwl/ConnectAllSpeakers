@@ -8,13 +8,7 @@ import java.io.RandomAccessFile
 /** Explicit supported-source failure, safe to show without exposing a local directory.
  * @param message Supported-format or file-integrity explanation.
  */
-internal class WavFileException(message: String) : IllegalArgumentException(message)
-
-/** File decoding seam for deterministic controller tests; no audio-device methods exist here. */
-internal fun interface AudioFileDecoder {
-    /** @param path User-selected native path. @param cancelled Cooperative load cancellation. @return Owned PCM. */
-    fun decode(path: String, cancelled: () -> Boolean): DecodedAudio
-}
+internal class WavFileException(message: String) : AudioFileException(message)
 
 /** Bounded RIFF/WAVE decoder for mono/stereo PCM16/24/32 and IEEE float32.
  * RIFX, RF64, compressed codecs, malformed chunks and non-finite float samples are rejected.

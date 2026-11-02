@@ -73,7 +73,7 @@ fun SpeakerInspector(speaker: RoomSpeaker?, hasSetup: Boolean, demoMode: Boolean
             Text("Speaker tray", style = MaterialTheme.typography.titleMedium)
             Text(if (demoMode) "Add a sample to this room layout." else "Choose an available Windows output.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
             WorkspaceButton("Add speaker", { onAction(MainAction.OpenDialog(MainDialog.AddSpeaker)) }, Modifier.fillMaxWidth(), Glyph.Add, enabled = hasSetup)
-            Text(if (demoMode) "Demo — sample speakers" else "Local WAV playback · up to two outputs", color = C.Muted, style = MaterialTheme.typography.labelSmall)
+            Text(if (demoMode) "Demo — sample speakers" else "WAV / MP3 playback · up to two outputs", color = C.Muted, style = MaterialTheme.typography.labelSmall)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Demo mode", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                 Switch(demoMode, { onAction(MainAction.SetDemoMode(it)) },
