@@ -24,7 +24,7 @@ stereo are still future work.
 - Assign Left, Right or Mono and adjust each output's app volume. Left/Right copy
   that source channel to the output; Mono mixes both. App gain does not change
   Windows master volume.
-- Test the selected real output with a one-second tone. **Play** uses the selected
+- Test the selected real output with a ten-second tone. **Play** uses the selected
   file; **Test speaker** uses the built-in tone.
 - Create, rename and delete setups; rename speakers; drag cards; use snap-to-grid,
   zoom and Reset positions. Moving cards changes the layout, not audio timing.
@@ -73,7 +73,7 @@ for generating the [manual test signals](docs/WindowsPlayback.md#manual-checks--
 ## Validation
 
 Latest recorded checks on November 1, 2026: desktop compilation, Android debug
-build and Windows app-image packaging passed; **26 shared JVM tests and 52 desktop
+build and Windows app-image packaging passed; **27 shared JVM tests and 52 desktop
 tests passed**, with zero failures, errors or skips. These automated checks use
 offline fixtures and fake playback outputs. Manual playback was reported
 successful; detailed device/driver and timing measurements are not recorded.

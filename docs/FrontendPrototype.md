@@ -33,8 +33,9 @@ It implements the [Main setup workspace Figma frame](https://www.figma.com/desig
 - Save setup captures an independent in-memory snapshot and confirms “saved for
   this session.” It does not write files or restore data after closing the app.
 - Demo Test speaker explains that sample devices cannot play audio. For a real
-  output it requests an explicit one-second tone and a 1.4-second visual highlight;
-  actual native playback remains subject to the user checks in WindowsPlayback.
+  output it requests an explicit ten-second tone. Its highlight follows the test
+  session and clears on completion, error or Stop. Actual native playback remains
+  subject to the user checks in WindowsPlayback.
 - Settings stays disabled, with a focusable accessible explanation. Narrow windows
   stack the inspector below the room, with vertical scrolling and horizontal
   scrolling for overflowing setup/title/tool rows.

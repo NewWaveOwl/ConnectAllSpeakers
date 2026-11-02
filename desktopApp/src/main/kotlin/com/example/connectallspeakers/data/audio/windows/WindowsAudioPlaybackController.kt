@@ -106,7 +106,7 @@ class WindowsAudioPlaybackController internal constructor(
      * @param routes Latest selected room routes. A different endpoint set requires an explicit new Play.
      */
     override fun updateRoutes(routes: List<PlaybackRoute>) { liveRoutes.set(routes.toList()) }
-    /** Stops any file and plays a bounded one-second -20 dBFS tone only on the explicit route.
+    /** Stops any file and plays a bounded ten-second -20 dBFS tone only on the explicit route.
      * @param route Exact endpoint, channel and gain. No default-output fallback exists.
      */
     override fun testSpeaker(route: PlaybackRoute) {
@@ -187,7 +187,8 @@ class WindowsAudioPlaybackController internal constructor(
             validate(command.routes)
         }
         paused = false
-        publish(PlaybackPhase.Playing, if (test) "Test tone · one second." else "Playing · timing is not calibrated.")
+        publish(PlaybackPhase.Playing, if (test) "Test tone · ${SPEAKER_TEST_DURATION_MILLIS / 1000} seconds. Press Stop to end early."
+            else "Playing · timing is not calibrated.")
     }
 
     /** Rejects invalid routes and stale discovery rather than sending audio elsewhere.

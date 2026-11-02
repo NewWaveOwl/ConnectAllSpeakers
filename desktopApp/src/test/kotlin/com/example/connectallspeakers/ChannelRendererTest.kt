@@ -35,13 +35,16 @@ class ChannelRendererTest {
         val mono = DecodedAudio("mono", 48_000, 1, floatArrayOf(.5f, -.5f))
         SpeakerChannel.entries.forEach { assertEquals(listOf(.5f, .5f, -.5f, -.5f), render(it, source = mono)) }
     }
-    @Test fun toneIsBoundedRampedAndExactlyOneSecond() {
+    @Test fun toneStaysAudibleForTenSecondsWithBoundedGainAndRampedEnds() {
         val tone = speakerTestTone()
-        assertEquals(48_000, tone.frames)
-        assertEquals(1_000L, tone.description.durationMillis)
+        assertEquals(480_000, tone.frames)
+        assertEquals(10_000L, tone.description.durationMillis)
         assertTrue(tone.samples.all { it.isFinite() && abs(it) <= .100001f })
         assertEquals(0f, tone.samples.first())
         assertEquals(0f, abs(tone.samples.last()))
+        val lateFrames = 48_000 * 8 until 48_000 * 8 + 4_800
+        val lateEnergy = lateFrames.sumOf { frame -> tone.samples[frame * 2].toDouble().let { it * it } } / lateFrames.count()
+        assertTrue(lateEnergy > .004, "The tone must still carry signal well after a slow output starts.")
     }
     @Test fun malformedRouteAndFrameRangeAreRejected() {
         assertFailsWith<IllegalArgumentException> { PlaybackRoute("", SpeakerChannel.Left, 80) }

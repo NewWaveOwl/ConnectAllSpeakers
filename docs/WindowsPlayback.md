@@ -38,8 +38,10 @@ reroute an active session.
   change Windows master volume. Samples are bounded to [-1, 1]; there is no boost,
   limiter, EQ, delay compensation or calibration. Already queued audio may take
   roughly a buffer plus device/Bluetooth latency to reflect an edit.
-- Test speaker explicitly stops file playback and requests a one-second 440 Hz
+- Test speaker explicitly stops file playback and requests a ten-second 440 Hz
   tone at -20 dBFS peak before app gain, with 10 ms ramps, on that card only.
+  The longer continuous signal gives slower outputs time to become audible.
+  Stop ends it early, and the card highlight follows the active test session.
   The previously loaded file remains available; the test does not resume it.
 - Pause retains each native queue; Resume continues it. Stop releases all streams
   and resets file position. Play after Stop, completion or failure starts at zero.
@@ -126,9 +128,9 @@ app-image directory must stay together; this is not an MSI installation.
 | Volume | During playback change A to 0%, then 50%, then 100%; keep B fixed. Compare with Windows volume. | A is muted at 0%; 50% is half the sample amplitude, not a promise of half perceived loudness. B and Windows master volume stay unchanged. Edits may lag by queued/device latency. |
 | Pause/resume | Pause in the middle of a tone; wait a few seconds; Resume. | All output consumption pauses, possibly with a short device-buffer tail. Position stops advancing and resumes from the retained queue, not the beginning. |
 | Stop/finish | Stop, then Play; also let the file finish naturally. | Stop resets to zero and releases streams. Final buffers drain before finished. Play after Stop/finish starts at zero. No automatic replay. |
-| Test speaker | Select B and press Test speaker while the file is playing. | File stops. Only B emits a one-second 440 Hz tone scaled by B's app volume. File remains selected and does not resume. At 0% the test is silent. |
+| Test speaker | Select B and press Test speaker (10s) while the file is playing. Try Stop before the test finishes. | File stops. Only B emits a ten-second 440 Hz tone scaled by B's app volume; slower outputs may miss its beginning. Highlight remains for the active test and clears on completion/error/Stop. Stop ends early. File remains selected and does not resume. At 0% the test is silent. |
 | Mono/resampling | Repeat with `mono-identification-48000.wav` on Left, Right and Mono, and with `stereo-identification-44100.wav`. | Mono source is present on either channel assignment. The 44.1 kHz file has the same pitch/timeline through Windows conversion, or an explicit format error; never a different output. |
-| MP3 sound check | Choose audio, select `stereo-identification-48000.mp3` or your own mono/stereo MP3, then Play. Repeat volume, channel, pause/stop and disconnect checks. | Selecting is silent; Play uses exactly the room's outputs and settings. The generated file has the same left/right pattern, with a small encoder delay/padding. The source name ends in `.mp3`. Test speaker still uses its separate one-second tone. |
+| MP3 sound check | Choose audio, select `stereo-identification-48000.mp3` or your own mono/stereo MP3, then Play. Repeat volume, channel, pause/stop and disconnect checks. | Selecting is silent; Play uses exactly the room's outputs and settings. The generated file has the same left/right pattern, with a small encoder delay/padding. The source name ends in `.mp3`. Test speaker uses its separate ten-second tone. |
 | Disconnect | During two-output playback, turn off/disconnect B. Repeat while paused. | Both streams stop with an error; B's card becomes Unavailable after notification/refresh. Names, channels, positions and app volumes remain. Some buffered sound may trail the disconnect. |
 | Reconnect | Reconnect B; wait for its card to become available, then press Play. | No sound resumes automatically. Same endpoint card keeps edits; explicit Play restarts at zero. If Windows creates a different endpoint ID, select it explicitly in a new room; it must not replace the old ID automatically. |
 | Rooms/demo | During playback switch rooms or enable Demo mode. Then return. | Playback stops. Each room retains independent edits. Demo cannot produce sound or choose files; Test explains that samples cannot play. Real rooms are retained. Return requires explicit Play. |
@@ -227,6 +229,21 @@ the playback PR. This is user-reported working playback on their Windows PC;
 the agent did not run hardware or audible checks. Device models, driver/format
 details and measured timing were not supplied, so the report does not establish
 broader compatibility, calibrated synchronization or an exhaustive checklist pass.
+
+In a subsequent update, the user specifically confirmed simultaneous playback
+through two outputs, independent volume, and disconnect/reconnect behavior.
+Closing/reopening was mentioned without an explicit result. The user reported
+that the original one-second built-in tone ended too quickly for their JBL to
+become audible. The test was therefore extended to ten continuous seconds at
+the same peak/app gain, with early Stop and engine-owned highlight cleanup.
+The longer tone still requires the user's JBL check; no agent hardware test was run.
+
+The longer-tone update passed desktop compilation, Android `assembleDebug`,
+Windows `createDistributable`, **27 shared JVM tests** and **52 desktop tests**, with
+zero failures, errors or skips. Offline checks verify ten-second PCM duration,
+unchanged peak/ramped ends, signal remaining after eight seconds, engine-owned
+highlight completion/error/Stop behavior, and early stream cleanup. The rebuilt
+app was not launched and no sound was played by the agent.
 
 ### Changed implementation areas
 

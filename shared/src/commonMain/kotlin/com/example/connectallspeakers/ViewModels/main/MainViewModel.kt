@@ -14,21 +14,18 @@ import com.example.connectallspeakers.data.audio.AudioOutputSnapshot
 import com.example.connectallspeakers.data.audio.AudioOutputStatus
 import com.example.connectallspeakers.data.audio.AudioPlaybackController
 import com.example.connectallspeakers.model.audio.PlaybackRoute
+import com.example.connectallspeakers.model.audio.PlaybackPhase
+import com.example.connectallspeakers.model.audio.SPEAKER_TEST_DURATION_MILLIS
 import com.example.connectallspeakers.model.audio.MAX_PLAYBACK_OUTPUTS
 import com.example.connectallspeakers.state.MainDialog
 import com.example.connectallspeakers.state.MainUiState
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.math.round
-
-// Animation settings
-private const val TEST_HIGHLIGHT_MILLIS = 1400L
 
 /** Owns session edits and routes explicit playback requests to the platform controller.
  * @param initialState Optional deterministic session used by behavior tests.
@@ -48,7 +45,6 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
     /** Read-only session state; immutable copies are emitted for every edit. */
     val state: StateFlow<MainUiState> = mutableState.asStateFlow()
     private var nextIdentity = 1L
-    private var testJob: Job? = null
     private var requestedTestEndpointId: String? = null
     private var inactiveSetups = if (initialState.demoMode) emptySetups() else sampleSetups()
     private var inactiveSelection: String? = "living"
@@ -58,7 +54,15 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
     init {
         if (playbackController != null) ownerScope.launch {
             playbackController.playback.collect { playback ->
-                mutableState.update { it.copy(playback = playback) }
+                mutableState.update { current ->
+                    val activeTest = when (playback.phase) {
+                        PlaybackPhase.Starting, PlaybackPhase.Playing, PlaybackPhase.Paused -> playback.isTestTone
+                        else -> false
+                    }
+                    current.copy(playback = playback, testingSpeakerId = if (activeTest) {
+                        current.selectedSetup?.speakers?.firstOrNull { it.output?.endpointId in playback.activeEndpointIds }?.id
+                    } else null)
+                }
             }
         }
         if (outputRepository != null) ownerScope.launch {
@@ -106,7 +110,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             MainAction.ChooseAudioFile -> if (!state.value.demoMode && playbackController != null) chooseAudioFile()
             MainAction.Play -> play()
             MainAction.Pause -> playbackController?.pause()
-            MainAction.Stop -> { requestedTestEndpointId = null; playbackController?.stop() }
+            MainAction.Stop -> stopPlayback()
             is MainAction.OpenDialog -> mutableState.update { it.copy(
                 dialog = action.dialog, dialogName = if (action.dialog == MainDialog.RenameSetup) it.selectedSetup?.name.orEmpty() else "",
                 dialogError = null,
@@ -123,8 +127,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         val after = state.value
         if (before.selectedSetupId != after.selectedSetupId || before.demoMode != after.demoMode ||
             routes(before).map { it.endpointId }.toSet() != routes(after).map { it.endpointId }.toSet()) {
-            requestedTestEndpointId = null
-            playbackController?.stop()
+            stopPlayback()
         } else if (action is MainAction.SetVolume || action is MainAction.AssignChannel) {
             val latest = routes(after)
             val testEndpoint = requestedTestEndpointId ?: after.playback.takeIf { it.isTestTone }?.activeEndpointIds?.singleOrNull()
@@ -291,7 +294,14 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         }
     }
 
-    /** Sends an explicit real-device test request and shows a cancellable visual pulse. */
+    /** Clears any pending test highlight and requests whole-session native cleanup. */
+    private fun stopPlayback() {
+        requestedTestEndpointId = null
+        mutableState.update { it.copy(testingSpeakerId = null) }
+        playbackController?.stop()
+    }
+
+    /** Requests a real-device test; the engine lifecycle owns the card highlight until completion. */
     private fun testSpeaker() {
         val selected = state.value.selectedSpeaker ?: return
         val output = selected.output
@@ -304,13 +314,9 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             return
         }
         val id = selected.id
-        testJob?.cancel()
         requestedTestEndpointId = output.endpointId
         playbackController.testSpeaker(PlaybackRoute(output.endpointId, selected.channel, selected.volume))
-        mutableState.update { it.copy(testingSpeakerId = id, feedback = "Test tone requested for ${selected.name}. App volume: ${selected.volume}%.") }
-        testJob = ownerScope.launch {
-            delay(TEST_HIGHLIGHT_MILLIS)
-            mutableState.update { it.copy(testingSpeakerId = null) }
-        }
+        mutableState.update { it.copy(testingSpeakerId = id,
+            feedback = "${SPEAKER_TEST_DURATION_MILLIS / 1000}-second test requested for ${selected.name}. App volume: ${selected.volume}%. Press Stop to end early.") }
     }
 }

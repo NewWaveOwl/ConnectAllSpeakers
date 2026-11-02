@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.example.connectallspeakers.ViewModels.main.MainAction
 import com.example.connectallspeakers.model.RoomSpeaker
 import com.example.connectallspeakers.model.audio.OutputAvailability
+import com.example.connectallspeakers.model.audio.SPEAKER_TEST_DURATION_MILLIS
 import com.example.connectallspeakers.model.SpeakerChannel
 import com.example.connectallspeakers.state.MainDialog
 import com.example.connectallspeakers.ui.theme.AllConnectColors as C
@@ -60,8 +61,8 @@ fun SpeakerInspector(speaker: RoomSpeaker?, hasSetup: Boolean, demoMode: Boolean
                 }
                 InspectorLabel("App volume")
                 VolumeSlider(speaker.volume, { onAction(MainAction.SetVolume(it)) })
-                WorkspaceButton("Test speaker", { onAction(MainAction.TestSpeaker) }, Modifier.fillMaxWidth(), Glyph.Play)
-                Text("Test plays a one-second tone at app volume.\nCanvas position does not change audio timing.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
+                WorkspaceButton("Test speaker (${SPEAKER_TEST_DURATION_MILLIS / 1000}s)", { onAction(MainAction.TestSpeaker) }, Modifier.fillMaxWidth(), Glyph.Play)
+                Text("Plays a ${SPEAKER_TEST_DURATION_MILLIS / 1000}-second tone at app volume. Press Stop to end early.\nCanvas position does not change audio timing.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
                 speaker.output?.let { output ->
                     Text("Windows: ${output.displayName}\n${output.type.label()}${if (output.isDefault) " · Default output" else ""}",
                         color = C.Muted, style = MaterialTheme.typography.bodySmall)

@@ -108,7 +108,7 @@ class PlaybackStateTest {
         assertEquals(id, owner.state.value.testingSpeakerId)
         playback.playback.value = PlaybackSnapshot(PlaybackPhase.Error, message = "Output disconnected.")
         runCurrent(); assertEquals("Output disconnected.", owner.state.value.playback.message)
-        advanceTimeBy(1401); runCurrent(); assertNull(owner.state.value.testingSpeakerId)
+        assertNull(owner.state.value.testingSpeakerId)
         owner.onAction(MainAction.SetDemoMode(true)); owner.onAction(MainAction.ChooseAudioFile)
         assertEquals(1, chosen)
     }
@@ -131,5 +131,30 @@ class PlaybackStateTest {
         owner.onAction(MainAction.Play)
         owner.onAction(MainAction.SetVolume(50))
         assertEquals(setOf("a", "b"), playback.updated.last().map { it.endpointId }.toSet())
+    }
+    @Test fun testHighlightFollowsPlaybackThroughLongToneCompletionAndStop() = runTest {
+        val playback = Playback()
+        val owner = owner(Outputs(), playback)
+        runCurrent(); owner.onAction(MainAction.AddOutput("a")); owner.onAction(MainAction.AddOutput("b"))
+        owner.onAction(MainAction.TestSpeaker)
+        val testedId = owner.state.value.selectedSpeaker!!.id
+        playback.playback.value = PlaybackSnapshot(PlaybackPhase.Starting,
+            source = PlaybackSource("Speaker test tone", 10_000, 48_000, 2),
+            activeEndpointIds = setOf("b"), isTestTone = true)
+        runCurrent(); assertEquals(testedId, owner.state.value.testingSpeakerId)
+        playback.playback.value = playback.playback.value.copy(phase = PlaybackPhase.Playing)
+        runCurrent(); advanceTimeBy(2_000); runCurrent()
+        assertEquals(testedId, owner.state.value.testingSpeakerId, "The old 1.4-second timeout must not clear a running test.")
+        playback.playback.value = playback.playback.value.copy(phase = PlaybackPhase.Completed,
+            positionMillis = 10_000, activeEndpointIds = emptySet(), isTestTone = false)
+        runCurrent(); assertNull(owner.state.value.testingSpeakerId)
+        owner.onAction(MainAction.TestSpeaker)
+        playback.playback.value = playback.playback.value.copy(phase = PlaybackPhase.Playing,
+            positionMillis = 0, activeEndpointIds = setOf("b"), isTestTone = true)
+        runCurrent(); assertEquals(testedId, owner.state.value.testingSpeakerId)
+        val stops = playback.stopped
+        owner.onAction(MainAction.Stop)
+        assertNull(owner.state.value.testingSpeakerId)
+        assertEquals(stops + 1, playback.stopped)
     }
 }

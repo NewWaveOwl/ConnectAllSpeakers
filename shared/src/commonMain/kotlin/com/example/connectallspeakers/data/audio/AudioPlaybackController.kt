@@ -30,7 +30,7 @@ interface AudioPlaybackController {
      */
     fun updateRoutes(routes: List<PlaybackRoute>)
 
-    /** Stops existing playback and plays a one-second, -20 dBFS tone through only this output.
+    /** Stops existing playback and plays a ten-second, -20 dBFS tone through only this output.
      * @param route Explicit real endpoint and app gain. No microphone or default output is used.
      */
     fun testSpeaker(route: PlaybackRoute)

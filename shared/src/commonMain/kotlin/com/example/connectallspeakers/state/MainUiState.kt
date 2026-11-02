@@ -19,7 +19,7 @@ enum class MainDialog { AddSetup, RenameSetup, DeleteSetup, AddSpeaker }
  * @property dialogName Draft setup name retained while a modal is visible.
  * @property dialogError Validation feedback, if any.
  * @property feedback Durable feedback until explicitly dismissed or replaced.
- * @property testingSpeakerId Temporary visual-only test highlight.
+ * @property testingSpeakerId Card highlighted during the requested/active test, cleared on completion or stop.
  * @property demoMode Whether the user explicitly selected the isolated sample workspace.
  * @property outputs Current real-output discovery state; never replaced with demo fixtures.
  * @property playback Platform playback state; no audio samples or local paths are exposed.

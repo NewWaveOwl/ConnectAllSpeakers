@@ -5,6 +5,9 @@ import com.example.connectallspeakers.model.SpeakerChannel
 /** Explicit limit for this first independent-output playback milestone. */
 const val MAX_PLAYBACK_OUTPUTS = 2
 
+/** Continuous test duration in milliseconds, allowing slower outputs time to become audible. */
+const val SPEAKER_TEST_DURATION_MILLIS = 10_000L
+
 /** Playback lifecycle. No state means that acoustic synchronization has been verified. */
 enum class PlaybackPhase { Unsupported, Empty, Loading, Ready, Starting, Playing, Paused, Stopped, Completed, Error }
 
