@@ -16,6 +16,14 @@ sealed interface MainAction {
     data class AssignChannel(val channel: SpeakerChannel) : MainAction
     /** @property percent Requested UI volume, clamped to 0..100. */
     data class SetVolume(val percent: Int) : MainAction
+    /** @property millis Requested whole-millisecond manual delay; invalid bounds are rejected. */
+    data class SetDelay(val millis: Int) : MainAction
+    /** @property id Real room card chosen as the zero-delay manual reference. */
+    data class SelectCalibrationReference(val id: String) : MainAction
+    /** Resets only the active room's delays; retains its explicit reference. */
+    data object ResetDelays : MainAction
+    /** Explicitly starts matching calibration cues on two real endpoints. */
+    data object PlayCalibration : MainAction
     /** Move in normalized card travel; invalid non-finite coordinates are ignored.
      * @property id Sample identity in the active room.
      * @property position Requested bounded position.

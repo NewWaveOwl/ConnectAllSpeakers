@@ -15,12 +15,15 @@ playback endpoints through a Core Audio repository with queued device-change
 notifications. Room settings stay separate from endpoint metadata. Samples are
 isolated behind explicit Demo mode. Experimental local WAV/MP3 playback now routes
 to one or two selected endpoints with app gain, channel mapping and explicit
-Play/Pause/Stop/Test controls. The user reports playback works on their Windows PC;
-measured timing and broader hardware compatibility remain unverified.
-Persistence, EQ/delay, synchronization and surround
+Play/Pause/Stop/Test controls. Manual 0–500 ms per-output delay, repeatable
+calibration cues and labeled engine timing diagnostics are implemented; delay
+edits stop playback for an explicit restart. The user reports playback works on
+their Windows PC; acoustic calibration results and broader compatibility remain
+unverified. Persistence, EQ, clock-drift correction, sustained synchronization and surround
 remain planned. See [FrontendPrototype](FrontendPrototype.md),
 [WindowsOutputDiscovery](WindowsOutputDiscovery.md) and
-[WindowsPlayback](WindowsPlayback.md) for scope, limits and the manual checklist.
+[WindowsPlayback](WindowsPlayback.md) and [TimingCalibration](TimingCalibration.md)
+for scope, limits and user-operated measurement/checklists.
 
 Selected playback approach: [MainDesign — direct Windows playback](MainDesign.md).
 Future system-audio input: [AllConnect virtual Windows output](WindowsVirtualOutput.md).
@@ -63,7 +66,7 @@ ConnectAllSpeakers/                 repository / Gradle root
     main.kt                        Windows desktop composition/window lifecycle
     audio/windows/                 Core Audio COM calls and notification bindings
     audio/wasapi/                  shared-mode rendering and native lifetime
-    audio/dsp/                     bounded WAV/MP3 decoding, source routing and gain
+    audio/dsp/                     bounded decoding, routing/gain, delay and calibration cues
     data/audio/windows/            single-worker discovery repository and cleanup
   androidApp/src/main/             retained Android launcher
   webApp/src/webMain/              retained web launcher; not an active audio target

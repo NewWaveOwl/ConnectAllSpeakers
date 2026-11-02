@@ -23,11 +23,13 @@ data class PlaybackSource(val name: String, val durationMillis: Long, val sample
  * @property endpointId Opaque Windows render endpoint identity.
  * @property channel Source channel deliberately selected by the user.
  * @property volumePercent Linear amplitude gain in percent, 0..100; never Windows master volume.
+ * @property delayMillis Bounded nonnegative manual delay, fixed until the session restarts.
  */
-data class PlaybackRoute(val endpointId: String, val channel: SpeakerChannel, val volumePercent: Int) {
+data class PlaybackRoute(val endpointId: String, val channel: SpeakerChannel, val volumePercent: Int, val delayMillis: Int = 0) {
     init {
         require(endpointId.isNotBlank()) { "Choose an explicit playback output." }
         require(volumePercent in 0..100) { "Volume must be between 0 and 100%." }
+        require(delayMillis in 0..MAX_OUTPUT_DELAY_MILLIS) { "Delay must be between 0 and $MAX_OUTPUT_DELAY_MILLIS ms." }
     }
 }
 
@@ -39,6 +41,9 @@ data class PlaybackRoute(val endpointId: String, val channel: SpeakerChannel, va
  * @property activeEndpointIds Exact outputs owned by the current playback session.
  * @property isTestTone Whether the current stream is a short, explicit speaker test.
  * @property message User-readable status or failure, without exposing local paths.
+ * @property outputTimings Latest per-output engine diagnostics; no acoustic latency is inferred.
+ * @property timingSequence Increases for every measurement packet, including unchanged paused values.
+ * @property isCalibration Whether a generated manual-calibration signal is playing.
  */
 data class PlaybackSnapshot(
     val phase: PlaybackPhase = PlaybackPhase.Unsupported,
@@ -47,4 +52,7 @@ data class PlaybackSnapshot(
     val activeEndpointIds: Set<String> = emptySet(),
     val isTestTone: Boolean = false,
     val message: String? = "Playback is available in the Windows desktop app only.",
+    val outputTimings: List<OutputTiming> = emptyList(),
+    val timingSequence: Long = 0,
+    val isCalibration: Boolean = false,
 )

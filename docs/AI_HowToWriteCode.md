@@ -15,7 +15,8 @@ historical exercises, course policies and unrelated transit rules are not tasks.
 - Windows is the first playback platform. Android is a later companion and
   separately evaluated playback platform; preserve the existing minimum API 33.
 - Start with audio played by our app and two independently active endpoints.
-  System audio capture, calibration, persistence, 2.1 and 7.1 are later features.
+  Bounded manual delay/calibration is implemented; automatic acoustic measurement,
+  clock-drift correction, system audio capture, persistence, 2.1 and 7.1 are later features.
 - Use OS audio APIs through our backend. Do not require an external mixer app.
   A binding/library is a separate dependency decision, with license and packaging review.
 - Bluetooth pairing, connection count, a successful API call or a selected output

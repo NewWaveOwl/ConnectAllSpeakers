@@ -4,6 +4,7 @@ import com.example.connectallspeakers.audio.dsp.AudioFileDecoder
 import com.example.connectallspeakers.audio.dsp.DecodedAudio
 import com.example.connectallspeakers.audio.dsp.LocalAudioFileDecoder
 import com.example.connectallspeakers.audio.dsp.speakerTestTone
+import com.example.connectallspeakers.audio.dsp.calibrationSignal
 import com.example.connectallspeakers.audio.wasapi.PlaybackDeviceSession
 import com.example.connectallspeakers.audio.wasapi.PlaybackRenderSession
 import com.example.connectallspeakers.audio.wasapi.WasapiDeviceSession
@@ -27,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference
  * @param deviceFactory Lazy native lifetime factory, called only for explicit playback requests.
  * @param dispatcher Serial, thread-confined worker; production owns its dedicated executor.
  * @param disposeDispatcher Releases the owned executor after native cleanup, or a no-op in tests.
+ * @param monotonicNanos Monotonic local observation clock; tests can inject virtual time.
  */
 class WindowsAudioPlaybackController internal constructor(
     private val outputs: AudioOutputRepository,
@@ -34,8 +36,9 @@ class WindowsAudioPlaybackController internal constructor(
     private val deviceFactory: () -> PlaybackDeviceSession,
     private val dispatcher: CoroutineDispatcher,
     private val disposeDispatcher: () -> Unit,
+    private val monotonicNanos: () -> Long = System::nanoTime,
 ) : AudioPlaybackController, AutoCloseable {
-    /** Production assembly. Native APIs remain lazy until explicit Play/Test.
+    /** Production assembly. Native APIs remain lazy until an explicit playback/test/calibration action.
      * @param outputs Application-owned Windows discovery repository, outliving this controller.
      */
     constructor(outputs: AudioOutputRepository) : this(outputs, LocalAudioFileDecoder(), { WasapiDeviceSession() }, newWorker())
@@ -45,8 +48,8 @@ class WindowsAudioPlaybackController internal constructor(
         this(outputs, decoder, deviceFactory, worker, { worker.close() })
 
     private data class Command(val epoch: Long, val kind: Kind, val path: String? = null,
-        val routes: List<PlaybackRoute> = emptyList())
-    private enum class Kind { Load, Play, Pause, Stop, Test }
+        val routes: List<PlaybackRoute> = emptyList(), val referenceEndpointId: String? = null)
+    private enum class Kind { Load, Play, Pause, Stop, Test, Calibrate }
     private val mutablePlayback = MutableStateFlow(PlaybackSnapshot(PlaybackPhase.Empty,
         message = "Choose a local WAV or MP3 file. Playback starts only when you press Play."))
     override val playback = mutablePlayback.asStateFlow()
@@ -59,7 +62,11 @@ class WindowsAudioPlaybackController internal constructor(
     private var session: PlaybackRenderSession? = null
     private var sessionIds: Set<String> = emptySet()
     private var testing = false
+    private var calibrating = false
     private var paused = false
+    private var lastTimings: List<OutputTiming> = emptyList()
+    private var timingSequence = 0L
+    private var nextMeasurementNanos = Long.MIN_VALUE
     private val worker = scope.launch {
         try {
             while (!closed.get()) {
@@ -74,12 +81,28 @@ class WindowsAudioPlaybackController internal constructor(
                         if (!paused) {
                             if (active.pump(liveRoutes.get())) {
                                 val wasTesting = testing
-                                val duration = if (testing) 0 else mutablePlayback.value.source?.durationMillis ?: 0
+                                val wasCalibrating = calibrating
+                                val duration = if (testing || calibrating) 0 else mutablePlayback.value.source?.durationMillis ?: 0
                                 releaseSession()
-                                publish(PlaybackPhase.Completed, if (wasTesting) "Test tone finished." else "Playback finished.", duration)
+                                publish(PlaybackPhase.Completed, when {
+                                    wasTesting -> "Test tone finished."
+                                    wasCalibrating -> "Calibration cues finished. Compare the sound, adjust delay, then replay."
+                                    else -> "Playback finished."
+                                }, duration)
                             } else {
                                 mutablePlayback.value = mutablePlayback.value.copy(positionMillis = active.positionMillis)
                             }
+                        }
+                        if (session != null && monotonicNanos() >= nextMeasurementNanos) {
+                            val now = monotonicNanos()
+                            val measured = active.measureTimings(now, paused)
+                            val finished = monotonicNanos()
+                            lastTimings = if (finished - now > TIMING_STALE_AFTER_MILLIS * 1_000_000) measured.map {
+                                it.unavailable("Timing sample took too long; measurements Unknown")
+                            } else measured
+                            timingSequence++
+                            nextMeasurementNanos = finished + 200_000_000L
+                            mutablePlayback.value = mutablePlayback.value.copy(outputTimings = lastTimings, timingSequence = timingSequence)
                         }
                     } catch (failure: Exception) { failSession(failure) }
                 }
@@ -102,10 +125,23 @@ class WindowsAudioPlaybackController internal constructor(
     override fun pause() { enqueue(Kind.Pause) }
     /** Cancels pending work and stops every stream; the loaded file stays available at position zero. */
     override fun stop() { enqueue(Kind.Stop) }
-    /** Updates gain/channel without a command per slider tick; membership changes stop the session.
+    /** Updates gain/channel without a command per slider tick; delay changes stop for explicit restart.
      * @param routes Latest selected room routes. A different endpoint set requires an explicit new Play.
      */
-    override fun updateRoutes(routes: List<PlaybackRoute>) { liveRoutes.set(routes.toList()) }
+    override fun updateRoutes(routes: List<PlaybackRoute>) {
+        if (closed.get()) return
+        val snapshot = routes.toList()
+        val previous = liveRoutes.getAndSet(snapshot)
+        if (snapshot.any { next -> previous.any { it.endpointId == next.endpointId && it.delayMillis != next.delayMillis } }) stop()
+    }
+
+    /** @param routes Two real routes. @param referenceEndpointId Zero-delay reference from those routes. */
+    override fun calibrate(routes: List<PlaybackRoute>, referenceEndpointId: String) {
+        if (closed.get()) return
+        val snapshot = routes.toList()
+        liveRoutes.set(snapshot)
+        enqueue(Kind.Calibrate, routes = snapshot, referenceEndpointId = referenceEndpointId)
+    }
     /** Stops any file and plays a bounded ten-second -20 dBFS tone only on the explicit route.
      * @param route Exact endpoint, channel and gain. No default-output fallback exists.
      */
@@ -123,10 +159,12 @@ class WindowsAudioPlaybackController internal constructor(
     /** Suspends until all native objects and COM initialization have been released. */
     suspend fun awaitClosed() { worker.join() }
 
-    /** @param kind Latest user command. @param path Optional local source. @param routes Explicit routing snapshot. */
-    private fun enqueue(kind: Kind, path: String? = null, routes: List<PlaybackRoute> = emptyList()) {
+    /** @param kind Latest user command. @param path Optional local source.
+     * @param routes Explicit routing snapshot. @param referenceEndpointId Optional zero-delay calibration reference.
+     */
+    private fun enqueue(kind: Kind, path: String? = null, routes: List<PlaybackRoute> = emptyList(), referenceEndpointId: String? = null) {
         if (closed.get()) return
-        commands.trySend(Command(generation.incrementAndGet(), kind, path, routes))
+        commands.trySend(Command(generation.incrementAndGet(), kind, path, routes, referenceEndpointId))
     }
 
     /** Executes a current command, converting failures to durable UI state without swallowing cancellation.
@@ -137,6 +175,7 @@ class WindowsAudioPlaybackController internal constructor(
             when (command.kind) {
                 Kind.Load -> {
                     releaseSession()
+                    lastTimings = emptyList()
                     publish(PlaybackPhase.Loading, "Reading audio file…")
                     val decoded = decoder.decode(requireNotNull(command.path)) { stale(command.epoch) }
                     checkCurrent(command.epoch)
@@ -145,16 +184,24 @@ class WindowsAudioPlaybackController internal constructor(
                 }
                 Kind.Play -> {
                     validate(command.routes)
-                    if (session != null && paused && !testing && command.routes.map { it.endpointId }.toSet() == sessionIds) {
+                    if (session != null && paused && !testing && !calibrating && command.routes.map { it.endpointId }.toSet() == sessionIds &&
+                        command.routes.all { route -> lastTimings.any { it.endpointId == route.endpointId && it.delayMillis == route.delayMillis } }) {
                         session!!.resume { checkCurrent(command.epoch) }
                         paused = false
-                        publish(PlaybackPhase.Playing, "Playing · timing is not calibrated.", session!!.positionMillis)
+                        publish(PlaybackPhase.Playing, "Playing · manual delay applied; acoustic timing is unverified.", session!!.positionMillis)
                     } else start(command, source ?: error("Choose a WAV or MP3 file first."), false)
                 }
                 Kind.Test -> start(command, speakerTestTone(), true)
+                Kind.Calibrate -> {
+                    require(command.routes.size == 2 && command.routes.any { it.endpointId == command.referenceEndpointId && it.delayMillis == 0 }) {
+                        "Calibration needs two outputs and a zero-delay reference."
+                    }
+                    start(command, calibrationSignal(), false, true)
+                }
                 Kind.Pause -> if (session != null) {
                     session!!.pause()
                     paused = true
+                    nextMeasurementNanos = Long.MIN_VALUE
                     publish(PlaybackPhase.Paused, "Paused.", session!!.positionMillis)
                 } else publish(if (source == null) PlaybackPhase.Empty else PlaybackPhase.Stopped, "No active playback to pause.")
                 Kind.Stop -> { releaseSession(); publish(if (source == null) PlaybackPhase.Empty else PlaybackPhase.Stopped, "Stopped.") }
@@ -170,15 +217,19 @@ class WindowsAudioPlaybackController internal constructor(
      * @param command Explicit routes and cancellation version.
      * @param audio Owned loaded file or temporary generated tone.
      * @param test Whether this is an explicit tone, leaving the loaded file unchanged.
+     * @param calibration Whether generated manual-calibration cues replace the file temporarily.
      */
-    private fun start(command: Command, audio: DecodedAudio, test: Boolean) {
+    private fun start(command: Command, audio: DecodedAudio, test: Boolean, calibration: Boolean = false) {
         releaseSession()
         validate(command.routes)
         checkCurrent(command.epoch)
         testing = test
+        calibrating = calibration
+        lastTimings = emptyList()
+        nextMeasurementNanos = Long.MIN_VALUE
         sessionIds = command.routes.map { it.endpointId }.toSet()
         mutablePlayback.value = PlaybackSnapshot(PlaybackPhase.Starting, audio.description,
-            activeEndpointIds = sessionIds, isTestTone = test, message = "Opening selected outputs…")
+            activeEndpointIds = sessionIds, isTestTone = test, isCalibration = calibration, message = "Opening selected outputs…")
         val prepared = PlaybackRenderSession(audio, deviceFactory())
         session = prepared
         prepared.prepare(liveRoutes.get()) {
@@ -187,8 +238,11 @@ class WindowsAudioPlaybackController internal constructor(
             validate(command.routes)
         }
         paused = false
-        publish(PlaybackPhase.Playing, if (test) "Test tone · ${SPEAKER_TEST_DURATION_MILLIS / 1000} seconds. Press Stop to end early."
-            else "Playing · timing is not calibrated.")
+        publish(PlaybackPhase.Playing, when {
+            test -> "Test tone · ${SPEAKER_TEST_DURATION_MILLIS / 1000} seconds. Press Stop to end early."
+            calibration -> "Calibration: 3-second warmup, then one pulse per second. Engine timing is not acoustic latency."
+            else -> "Playing · manual delay applied; acoustic timing is unverified."
+        })
     }
 
     /** Rejects invalid routes and stale discovery rather than sending audio elsewhere.
@@ -223,10 +277,12 @@ class WindowsAudioPlaybackController internal constructor(
     /** Closes even a paused or partly prepared session and clears routing identity. */
     private fun releaseSession() {
         val previous = session
+        if (previous != null) lastTimings = previous.timingSnapshot().map { it.unavailable("Session ended; live timing unavailable") }
         session = null
         sessionIds = emptySet()
         paused = false
         testing = false
+        calibrating = false
         previous?.close()
     }
 
@@ -242,7 +298,8 @@ class WindowsAudioPlaybackController internal constructor(
      */
     private fun publish(phase: PlaybackPhase, message: String, position: Long = 0) {
         mutablePlayback.value = PlaybackSnapshot(phase,
-            if (testing) mutablePlayback.value.source else source?.description, position, sessionIds.toSet(), testing, message)
+            if (testing || calibrating) mutablePlayback.value.source else source?.description, position, sessionIds.toSet(), testing, message,
+            outputTimings = lastTimings, timingSequence = timingSequence, isCalibration = calibrating)
     }
 
     companion object {

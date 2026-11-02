@@ -2,8 +2,11 @@ package com.example.connectallspeakers.audio.wasapi
 
 import com.example.connectallspeakers.audio.dsp.ChannelRenderer
 import com.example.connectallspeakers.audio.dsp.DecodedAudio
+import com.example.connectallspeakers.audio.dsp.PcmDelayLine
 import com.example.connectallspeakers.model.audio.MAX_PLAYBACK_OUTPUTS
 import com.example.connectallspeakers.model.audio.PlaybackRoute
+import com.example.connectallspeakers.model.audio.OutputTiming
+import com.example.connectallspeakers.model.audio.outputDelayFrames
 
 /** Owns all selected streams and their independent cursors on one thread.
  * All endpoints are prepared before starting any. Failure is atomic at the session boundary.
@@ -11,7 +14,9 @@ import com.example.connectallspeakers.model.audio.PlaybackRoute
  * @param devices Owned COM lifetime, released after endpoints even on partial initialization.
  */
 internal class PlaybackRenderSession(private val source: DecodedAudio, private val devices: PlaybackDeviceSession) : AutoCloseable {
-    private data class Stream(val routeId: String, val endpoint: PlaybackEndpoint, val bytes: ByteArray, var cursor: Int = 0)
+    private data class Stream(val routeId: String, val endpoint: PlaybackEndpoint, val bytes: ByteArray,
+        val delayMillis: Int, val delayFrames: Int, val delay: PcmDelayLine,
+        val clock: OutputClockTracker = OutputClockTracker(), var cursor: Int = 0, var queued: Int = 0, var underruns: Int = 0)
     private val streams = mutableListOf<Stream>()
     private var started = false
     private var closed = false
@@ -30,7 +35,9 @@ internal class PlaybackRenderSession(private val source: DecodedAudio, private v
                 val endpoint = devices.openEndpoint(route.endpointId, source.sampleRate)
                 try {
                     require(endpoint.channels in 1..2 && endpoint.capacityFrames in 1..source.sampleRate * 2) { "Unsupported output buffer format." }
-                    streams += Stream(route.endpointId, endpoint, ByteArray(endpoint.capacityFrames * endpoint.channels * 4))
+                    val delayFrames = outputDelayFrames(route.delayMillis, source.sampleRate)
+                    streams += Stream(route.endpointId, endpoint, ByteArray(endpoint.capacityFrames * endpoint.channels * 4),
+                        route.delayMillis, delayFrames, PcmDelayLine(delayFrames, endpoint.channels, endpoint.capacityFrames))
                 } catch (failure: Throwable) { endpoint.close(); throw failure }
             }
             pump(routes)
@@ -53,19 +60,26 @@ internal class PlaybackRenderSession(private val source: DecodedAudio, private v
         var completed = true
         streams.forEach { stream ->
             val queued = stream.endpoint.queuedFrames()
-            check(queued in 0..stream.endpoint.capacityFrames) { "Windows reported an invalid playback buffer size." }
-            if (started && queued == 0 && stream.cursor in 1 until source.frames) {
+            check(queued in 0..minOf(stream.endpoint.capacityFrames, stream.cursor)) { "Windows reported an invalid playback buffer size." }
+            stream.queued = queued
+            val totalFrames = source.frames + stream.delayFrames
+            if (started && queued == 0 && stream.cursor in 1 until totalFrames) {
+                stream.underruns++
                 error("Playback buffer underrun. The session stopped; press Play to restart.")
             }
-            earliest = minOf(earliest, stream.cursor - queued)
-            val frames = minOf(stream.endpoint.capacityFrames - queued, source.frames - stream.cursor)
+            earliest = minOf(earliest, (stream.cursor - queued - stream.delayFrames).coerceIn(0, source.frames))
+            val frames = minOf(stream.endpoint.capacityFrames - queued, totalFrames - stream.cursor)
             if (frames > 0) {
-                ChannelRenderer.render(source, stream.cursor, frames, stream.endpoint.channels,
+                val sourceFrames = minOf(frames, (source.frames - stream.cursor).coerceAtLeast(0))
+                ChannelRenderer.render(source, minOf(stream.cursor, source.frames), sourceFrames, stream.endpoint.channels,
                     routes.first { it.endpointId == stream.routeId }, stream.bytes)
+                stream.bytes.fill(0, sourceFrames * stream.endpoint.channels * 4, frames * stream.endpoint.channels * 4)
+                stream.delay.process(stream.bytes, frames)
                 stream.endpoint.submit(stream.bytes, frames)
                 stream.cursor += frames
+                stream.queued += frames
             }
-            if (stream.cursor < source.frames || queued + frames > 0) completed = false
+            if (stream.cursor < totalFrames || queued + frames > 0) completed = false
         }
         positionFrames = maxOf(positionFrames, earliest)
         return completed
@@ -73,6 +87,33 @@ internal class PlaybackRenderSession(private val source: DecodedAudio, private v
 
     /** Source position based on the slowest endpoint's queued frames, not acoustic latency. */
     val positionMillis: Long get() = positionFrames * 1000L / source.sampleRate
+
+    /** Refreshes native diagnostics independently of rendering, including while paused.
+     * @param nowNanos Monotonic observation time, injected by tests where needed.
+     * @param paused Whether stream consumption is intentionally frozen.
+     * @return Copied portable measurements; native failures propagate for whole-session cleanup.
+     */
+    fun measureTimings(nowNanos: Long, paused: Boolean): List<OutputTiming> {
+        check(!closed)
+        streams.forEach { stream ->
+            val queued = stream.endpoint.queuedFrames()
+            check(queued in 0..minOf(stream.endpoint.capacityFrames, stream.cursor)) { "Invalid diagnostic queue size." }
+            stream.queued = queued
+            stream.clock.observe(stream.endpoint.clockReading(), nowNanos, stream.cursor * 1000.0 / source.sampleRate, paused)
+        }
+        return timingSnapshot()
+    }
+
+    /** Copies cached counts without further native calls, including an underrun immediately before failure.
+     * @return Latest per-output counters/configuration; caller invalidates live values after closure.
+     */
+    fun timingSnapshot(): List<OutputTiming> = streams.map { stream ->
+        OutputTiming(stream.routeId, source.sampleRate, stream.delayMillis, stream.delayFrames,
+            stream.endpoint.capacityFrames, stream.cursor.toLong(), stream.queued,
+            (stream.cursor - stream.queued - stream.delayFrames).coerceIn(0, source.frames).toLong(),
+            stream.clock.value, stream.clock.message,
+            stream.endpoint.streamLatencyMillis?.takeIf { it.isFinite() && it >= 0 }, stream.underruns)
+    }
 
     /** Pauses all streams; any error is propagated for whole-session cleanup by the controller. */
     fun pause() { streams.forEach { it.endpoint.stop() }; started = false }

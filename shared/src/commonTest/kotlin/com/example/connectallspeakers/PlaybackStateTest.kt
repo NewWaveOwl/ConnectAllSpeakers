@@ -32,6 +32,7 @@ class PlaybackStateTest {
         override fun stop() { stopped++ }
         override fun updateRoutes(routes: List<PlaybackRoute>) { updated += routes }
         override fun testSpeaker(route: PlaybackRoute) { tested += route }
+        override fun calibrate(routes: List<PlaybackRoute>, referenceEndpointId: String) = Unit
     }
     private fun TestScope.owner(outputs: Outputs, playback: Playback, choose: () -> Unit = {}) =
         MainViewModel(outputRepository = outputs, collectionScope = backgroundScope, playbackController = playback, chooseAudioFile = choose)

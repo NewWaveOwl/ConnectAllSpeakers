@@ -25,10 +25,16 @@ interface AudioPlaybackController {
     /** Stops and releases all outputs; the loaded file remains available for replay from zero. */
     fun stop()
 
-    /** Applies channel/gain edits to subsequent buffers. Changing endpoint membership stops playback.
+    /** Applies channel/gain edits to subsequent buffers. Delay edits stop playback for an explicit restart.
      * @param routes Current room routes, with no implicit endpoint replacement.
      */
     fun updateRoutes(routes: List<PlaybackRoute>)
+
+    /** Requests generated manual-calibration cues on exactly two real outputs; preserves the loaded file.
+     * @param routes Explicit endpoints with prepared delays and app gains.
+     * @param referenceEndpointId One of these endpoints, with zero manual delay.
+     */
+    fun calibrate(routes: List<PlaybackRoute>, referenceEndpointId: String)
 
     /** Stops existing playback and plays a ten-second, -20 dBFS tone through only this output.
      * @param route Explicit real endpoint and app gain. No microphone or default output is used.

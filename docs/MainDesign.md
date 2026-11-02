@@ -6,11 +6,12 @@ Start with Approach 1: one Windows PC connects directly to two Bluetooth speaker
 Our app processes and routes the audio using Windows APIs. No external mixer app,
 receiver phones or custom hardware is required by this design.
 
-**Status:** experimental local WAV/MP3 rendering implemented. The user reports
-working playback on their Windows PC (November 1, 2026). Measured synchronization,
+**Status:** experimental local WAV/MP3 rendering, engine timing diagnostics and
+manual per-speaker delay implemented. The user reports working playback on their
+Windows PC (November 1, 2026). This update's acoustic calibration measurements,
 broader hardware compatibility and release checks remain unverified.
 
-The current deliverable is a preceding [frontend prototype](FrontendPrototype.md):
+The current deliverable builds on the shared [frontend prototype](FrontendPrototype.md):
 an interactive Windows workspace with active Core Audio output discovery and
 in-memory room state. Samples remain available in explicit Demo mode. Enumeration
 does not pair devices or produce audio; see [discovery](WindowsOutputDiscovery.md). The
@@ -34,8 +35,12 @@ Per-speaker processing is introduced after simultaneous playback is proven.
 
 The user pairs speakers in Windows, selects two outputs in our app, assigns
 Left/Right, checks each with a test sound, then plays a local audio file.
-Linear app volume (including 0% mute) is implemented. EQ, delay and saved groups
-require later work; current room save snapshots exist only for the session.
+Linear app volume (including 0% mute) and bounded manual delay are implemented.
+Choose the slower output as a zero-delay reference and delay the faster one by
+0–500 ms; changes stop playback and require a new Play. See
+[TimingCalibration](TimingCalibration.md) for rounding, reset behavior, repeatable
+cues and measurement reports. EQ and persistent groups require later work;
+current room save snapshots, reference and delays exist only for the session.
 
 ## Code ownership
 
@@ -65,8 +70,10 @@ Delay buffers can hold back a faster speaker to match a slower one. Fixed delay
 does not correct clock drift; sustained synchronization needs measurement and
 later drift correction. Speaker count and reliability depend on hardware/drivers.
 
-After the first milestone: local-file stereo, individual controls, calibration,
-saved groups, then additional outputs. System-audio capture, 2.1/7.1 and Android
+Local-file stereo, individual gain/channel controls and manual delay are now
+implemented. Acoustic validation and clock-drift correction remain before any
+sustained synchronization claim; saved groups and additional outputs follow.
+System-audio capture, 2.1/7.1 and Android
 playback are separate later features.
 
 For other Windows apps, the later [AllConnect virtual output](WindowsVirtualOutput.md)
