@@ -52,7 +52,7 @@ fun PlaybackControls(playback: PlaybackSnapshot, demoMode: Boolean, onAction: (M
         Text(if (demoMode) "Demo speakers cannot play audio. Switch Demo mode off to use Windows outputs."
             else playback.message.orEmpty(), color = if (playback.phase == PlaybackPhase.Error) MaterialTheme.colorScheme.error else C.Teal,
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-        Text("1–2 outputs · Manual delay applies on restart · Acoustic latency and clock drift are not corrected automatically",
+        Text("1–2 outputs · Manual delay applies on restart · Experimental drift option in Manual calibration · Acoustic alignment is unverified",
             color = C.Muted, style = MaterialTheme.typography.bodySmall)
     }
 }

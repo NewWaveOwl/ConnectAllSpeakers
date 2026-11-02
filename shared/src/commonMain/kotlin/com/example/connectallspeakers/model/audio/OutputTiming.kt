@@ -27,25 +27,27 @@ data class OutputClockTiming(val positionTicks: Long, val frequencyTicksPerSecon
 
 /** Immutable diagnostic packet for one explicitly selected output.
  * @property endpointId Exact endpoint identity.
- * @property sampleRate Source frames per second; queued/submitted counts use this rate.
+ * @property sampleRate Source and nominal output-format frames/second; output counts differ from source progress after resampling.
  * @property delayMillis Prepared manual delay, fixed for this session.
  * @property delayFrames Prepared source-rate delay frames, rounded up.
- * @property capacityFrames Native queue capacity in source-rate frames.
+ * @property capacityFrames Native queue capacity in output-format frames.
  * @property submittedFrames Complete stream frames submitted, including leading delay and final drain.
- * @property queuedFrames Current queue count; null after Stop, failure or stale data.
- * @property sourcePositionFrames Queue-derived source progress excluding leading delay; null if stale/inactive.
+ * @property queuedFrames Current output-format queue count; null after Stop, failure or stale data.
+ * @property sourcePositionFrames Queue-derived source progress excluding delay, mapped through actual resampling history;
+ * floored to whole source frames, or null if stale/inactive/unavailable.
  * @property clock Valid recent native clock sample, or null for Unknown.
  * @property clockMessage Explicit reason for an Unknown clock; null for a valid reading.
  * @property streamLatencyMillis Windows-reported stream latency, not Bluetooth/acoustic latency; null if unavailable.
  * @property underruns Detected empty running queues before the end of this session.
  * @property isLive Whether this packet still describes an open session.
+ * @property drift Experimental drift-control diagnostics, or null when correction is disabled.
  */
 data class OutputTiming(val endpointId: String, val sampleRate: Int, val delayMillis: Int,
     val delayFrames: Int, val capacityFrames: Int, val submittedFrames: Long,
     val queuedFrames: Int?, val sourcePositionFrames: Long?, val clock: OutputClockTiming? = null,
     val clockMessage: String? = "Clock unavailable", val streamLatencyMillis: Double? = null,
-    val underruns: Int = 0, val isLive: Boolean = true) {
-    /** Queue duration at the requested source rate, or Unknown. */
+    val underruns: Int = 0, val isLive: Boolean = true, val drift: OutputDriftTiming? = null) {
+    /** Nominal queue duration at the output-format rate, or Unknown; not acoustic latency. */
     val queuedMillis: Double? get() = queuedFrames?.let { it * 1000.0 / sampleRate }
 
     /** Removes stale runtime measurements while retaining the last session's counters/configuration.
@@ -53,5 +55,6 @@ data class OutputTiming(val endpointId: String, val sampleRate: Int, val delayMi
      * @return Inactive packet with no cached position/latency presented as current.
      */
     fun unavailable(reason: String): OutputTiming = copy(isLive = false, queuedFrames = null,
-        sourcePositionFrames = null, clock = null, clockMessage = reason, streamLatencyMillis = null)
+        sourcePositionFrames = null, clock = null, clockMessage = reason, streamLatencyMillis = null,
+        drift = drift?.unavailable(reason))
 }

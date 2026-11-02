@@ -21,6 +21,8 @@ internal class OutputClockTracker {
     var value: OutputClockTiming? = null; private set
     /** Reason for Unknown, or null when valid. */
     var message: String? = "Clock unavailable"; private set
+    /** True when the current sample violates stream monotonicity/frequency; correction must stop. */
+    var discontinuityDetected: Boolean = false; private set
 
     /** Checks native units, monotonicity, freshness and plausibility against submitted stream data.
      * @param reading Copied native reading, or null if unsupported/unavailable.
@@ -30,6 +32,7 @@ internal class OutputClockTracker {
      */
     fun observe(reading: NativeClockReading?, nowNanos: Long, submittedMillis: Double, paused: Boolean) {
         value = null
+        discontinuityDetected = false
         fun unknown(reason: String) { message = reason }
         if (paused) { progressAt = nowNanos; unknown("Paused; clock comparison unavailable"); return }
         if (reading == null) { unknown("Clock unavailable"); return }
@@ -37,17 +40,18 @@ internal class OutputClockTracker {
             reading.qpc100Nanos <= 0 || reading.observedQpc100Nanos < reading.qpc100Nanos) {
             unknown("Invalid or low-confidence clock reading"); return
         }
+        val old = previous
+        if (old != null && (old.frequencyTicksPerSecond != reading.frequencyTicksPerSecond ||
+            reading.positionTicks < old.positionTicks || reading.qpc100Nanos < old.qpc100Nanos)) {
+            discontinuityDetected = true
+            unknown("Clock discontinuity; restart playback to reset timing"); return
+        }
         if (reading.observedQpc100Nanos - reading.qpc100Nanos > TIMING_STALE_AFTER_MILLIS * 10_000) {
             unknown("Clock timestamp is stale"); return
         }
         val positionMillis = reading.positionTicks.toDouble() / reading.frequencyTicksPerSecond * 1000.0
         if (!positionMillis.isFinite() || positionMillis > submittedMillis + 1000.0) {
             unknown("Clock position is inconsistent with submitted data"); return
-        }
-        val old = previous
-        if (old != null && (old.frequencyTicksPerSecond != reading.frequencyTicksPerSecond ||
-            reading.positionTicks < old.positionTicks || reading.qpc100Nanos < old.qpc100Nanos)) {
-            unknown("Clock discontinuity; restart playback to reset timing"); return
         }
         if (old == null || old.positionTicks != reading.positionTicks) progressAt = nowNanos
         previous = reading

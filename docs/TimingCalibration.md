@@ -4,7 +4,10 @@ Issue [#6](https://github.com/NewWaveOwl/ConnectAllSpeakers/issues/6) adds engin
 diagnostics and bounded manual delay to the existing one/two-output local-file
 renderer. The implementation is experimental. **Acoustic acceptance is pending
 the user's measurements.** No automatic measurement, microphone access, clock-drift
-correction, persistence or new driver is introduced.
+correction, persistence or new driver is introduced by the manual-calibration
+slice. The current app also has separate, opt-in
+[experimental drift correction](ClockDriftCorrection.md) for file playback;
+calibration cues/tests still use manual delay only.
 
 ## Controls and reference
 
@@ -80,7 +83,7 @@ paused. These values describe the engine, **not measured sound arrival**:
 | Prepared delay | Whole-ms request and rounded source-rate frames for this session |
 | Submitted | Stream frames submitted, including leading silence and EOF drain |
 | Buffer / queued | Native capacity/current padding in source-rate frames; queue ms = frames × 1000 / source rate |
-| Source position | `clamp(submitted - queued - delayFrames, 0, sourceFrames)`; an engine progress estimate |
+| Source position | `clamp(submitted - queued - delayFrames, 0, sourceFrames)` with correction off; actual fractional history mapping with correction on; whole input-source frames, never acoustic arrival |
 | Engine clock | `IAudioClock` position ticks × 1000 / `GetFrequency()`; clock units need not be frames |
 | Clock QPC timestamp | Correlated timestamp already expressed by Windows in 100-ns QPC units; it is not a frame count or wall-clock date |
 | Windows stream latency | `GetStreamLatency()` converted from 100-ns units to ms; a native stream latency bound, not complete Bluetooth/acoustic delay |
@@ -174,7 +177,8 @@ Offline PCM/fake-clock results cannot establish acoustic synchronization.
    latency may change between sessions and require recalibration.
 8. Play the existing 180-second WAV from the [playback checklist](WindowsPlayback.md#manual-checks--user-operates-the-hardware).
    Compare early/late offsets and record drift instead of attributing it to fixed
-   calibration. Fixed delay cannot correct independent-clock drift (#7).
+   calibration. Fixed delay cannot correct independent-clock drift. The optional
+   [#7 experimental flow](ClockDriftCorrection.md) has a separate sustained test.
 9. Stop, close and reopen the app. Expect no remaining playback; calibration and
    rooms are currently session-only and must be entered again. Native cleanup on
    actual hardware and installer behavior still require user verification.
@@ -225,8 +229,10 @@ validation and loaded-file retention. Automated evidence and packaging are
 recorded in [Windows playback](WindowsPlayback.md#offline-verification).
 
 No initial/residual acoustic measurement has been recorded for this implementation.
-Issue #6's acoustic acceptance remains open until the user supplies actual
-measurements against a declared target. Long-term alignment is separate work.
+The #6 implementation is delivered; outstanding acoustic acceptance is tracked
+in [stability issue #10](https://github.com/NewWaveOwl/ConnectAllSpeakers/issues/10)
+until the user supplies measurements against a declared target. Closing the
+implementation issue does not establish acoustic alignment.
 
 ## Primary Windows references
 

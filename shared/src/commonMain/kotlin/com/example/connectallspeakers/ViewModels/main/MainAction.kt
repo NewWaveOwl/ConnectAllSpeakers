@@ -20,6 +20,8 @@ sealed interface MainAction {
     data class SetDelay(val millis: Int) : MainAction
     /** @property id Real room card chosen as the zero-delay manual reference. */
     data class SelectCalibrationReference(val id: String) : MainAction
+    /** @property enabled Experimental two-output file drift correction; a change stops for explicit restart. */
+    data class SetDriftCorrection(val enabled: Boolean) : MainAction
     /** Resets only the active room's delays; retains its explicit reference. */
     data object ResetDelays : MainAction
     /** Explicitly starts matching calibration cues on two real endpoints. */

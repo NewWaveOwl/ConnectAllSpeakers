@@ -55,6 +55,7 @@ data class RoomSpeaker(
  * @property snapToGrid Whether completed moves snap to the room grid.
  * @property zoom Visual scale from 0.75 to 1.5, keeping every card within the canvas.
  * @property calibrationReferenceSpeakerId Explicit reference card, or null to use the first room card.
+ * @property driftCorrectionEnabled Explicit experimental opt-in for two-output local-file playback.
  */
 data class RoomSetup(
     val id: String,
@@ -64,6 +65,7 @@ data class RoomSetup(
     val snapToGrid: Boolean = true,
     val zoom: Float = 1f,
     val calibrationReferenceSpeakerId: String? = null,
+    val driftCorrectionEnabled: Boolean = false,
 ) {
     /** Calibration reference; missing references fall back to the first card without replacing any endpoint. */
     val calibrationReference: RoomSpeaker? get() = speakers.find { it.id == calibrationReferenceSpeakerId } ?: speakers.firstOrNull()

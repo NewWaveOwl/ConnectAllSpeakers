@@ -56,8 +56,10 @@ reroute an active session.
   A discovery loading/error state alone is not proof of disconnection. Native
   calls may still fail if Windows invalidates the endpoint before enumeration.
 
-The outputs have independent clocks and are started sequentially. This milestone
-does **not** provide guaranteed synchronized stereo, drift correction, measured acoustic latency,
+The outputs have independent clocks and are started sequentially. Optional
+[experimental drift correction](ClockDriftCorrection.md) now resamples the follower
+within fixed limits, off by default. The current app does **not** provide
+guaranteed synchronized stereo or measured acoustic latency,
 gapless playback, seeking/looping, system-audio capture, a virtual driver, pairing,
 persistence or an Android playback service. Audible simultaneous output and
 compatibility remain unverified until the user performs the checks below.
@@ -280,6 +282,45 @@ app was not launched and no sound was played by the agent.
   results remain pending. Use the [manual measurement procedure and report](TimingCalibration.md).
   Fixed delay does not implement the drift-correction milestone (#7).
 
+### Experimental clock drift — November 2, 2026
+
+- The preceding timing/calibration work was committed separately as `bd54127`.
+  Drift changes are on `codex/clock-drift-correction`; no hardware result is
+  inferred from that commit or the existing user's playback confirmation.
+- Desktop compilation, shared JVM tests, desktop tests, Android `assembleDebug`
+  and Windows `createDistributable`: **passed**. Inspected packaged DSP/servo and
+  shared drift-diagnostic classes. The rebuilt app image was **not launched**.
+- Shared: **36 passed** in 7 suites; desktop: **94 passed** in 17 suites.
+  **130 total passed**, zero failures/errors/skips. This adds 26 focused tests
+  covering source interpolation/history, exact neutral bypass, channel/gain
+  integrity, actual delay/EOF drain with active correction, queue bounds,
+  reference/opt-in isolation, stale packets, cleanup, virtual clocks, jitter,
+  unavailable/discontinuous clocks, capped demand and pause/rebaseline behavior.
+- Synthetic twenty-minute ±50/±200/±500 ppm clocks met the declared ≤1 ms
+  residual-source-skew target from 120 s onward; maximum measured residual was
+  below 0.374 ms. Final-minute correction variation was below 0.01 ppm. Five-minute
+  actual PCM/native-style queue simulations at ±200 ppm measured residuals below
+  0.435 ms, with fixed 800-frame/8 kHz queues. See [actual fake-clock results and method](ClockDriftCorrection.md#offline-evidence-and-remaining-acoustic-acceptance).
+- Generated and independently read all samples of the twenty-minute 8 kHz stereo
+  PCM16 fixture. Verified 9,600,000 frames, identical channels, 80 ms pulses and
+  silence after the warmup, peak ≤3277/32767 and 38,400,044-byte file size. It fits
+  the WAV decoder's 64 MiB sample-data limit. No sound was played.
+- Static offscreen fixtures at 1440 × 900, 1440 × 2000 and 840 × 2000 verified
+  the compact/expanded controls, experimental switch, selected-speaker settings
+  and readable drift/uncertainty/frame-unit labels. Configure/detail actions
+  operated in the isolated fixture. No native app assembly/services were used;
+  live desktop keyboard/focus/resizing and hardware quality checks remain user-run.
+- Dependency versions are unchanged. The existing temporary-path workaround was
+  reused; the existing Android SDK XML and baseline test assertion warnings remain.
+  `git diff --check`, documentation links and shared/native import boundaries passed.
+- Hardware discovery, native playback, acoustic initial/residual calibration,
+  sustained start/end sound-arrival skew, quality, disconnect/shutdown and
+  installer checks were not run by the agent. The opt-in remains experimental
+  and off by default pending user evidence tracked in stability issue #10 and
+  final parameter review. Closing implementation issues #6/#7 does not mark
+  their unperformed acoustic checks as passed.
+  Use the [twenty-minute procedure/report](ClockDriftCorrection.md#user-operated-twenty-minute-check).
+
 ### Changed implementation areas
 
 | Area | Files |
@@ -290,6 +331,7 @@ app was not launched and no sound was played by the agent.
 | Decoder/processing | desktop `audio/dsp/AudioFileDecoder.kt`, `LocalAudioFileDecoder.kt`, `DecodedAudio.kt`, `WavFileDecoder.kt`, `Mp3FileDecoder.kt`, `Mp3FrameLayout.kt`, `ChannelRenderer.kt` |
 | Native rendering | desktop `audio/wasapi/WasapiDeviceSession.kt`, `PlaybackDeviceSession.kt`, `PlaybackRenderSession.kt` |
 | Manual timing/calibration | shared `model/audio/OutputTiming.kt`, room reference/delay state and calibration/inspector controls; desktop `PcmDelayLine.kt`, `CalibrationSignal.kt`, `OutputClockTracker.kt`, `WasapiClock.kt`; [procedure/report](TimingCalibration.md) |
+| Experimental drift | shared `OutputDriftTiming.kt` and per-room opt-in/reference; desktop `DriftController.kt`, `AdaptivePcmRenderer.kt`, `SourceFrameHistory.kt`; [method/limits/report](ClockDriftCorrection.md) |
 | Offline coverage | shared `PlaybackStateTest.kt`; desktop `ChannelRendererTest.kt`, `WavFileDecoderTest.kt`, `Mp3FileDecoderTest.kt`, `Mp3PlaybackControllerTest.kt`, `PlaybackRenderSessionTest.kt`, `WindowsAudioPlaybackControllerTest.kt`, test-only `PlaybackFakes.kt` |
 | Manual fixtures/documentation | `tools/generate_playback_test_files.py`, `tools/generate_mp3_test_fixtures.py`, original MP3 fixtures under desktop test resources, this checklist, `MainDocs.md`, `MainDesign.md`, `FrontendPrototype.md`, `WindowsOutputDiscovery.md` |
 

@@ -133,6 +133,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
                     calibrationReferenceSpeakerId = action.id,
                     speakers = room.speakers.map { if (it.id == action.id) it.copy(delayMillis = 0) else it })
             }
+            is MainAction.SetDriftCorrection -> if (!state.value.demoMode) editRoom { it.copy(driftCorrectionEnabled = action.enabled) }
             MainAction.ResetDelays -> editRoom { room -> room.copy(speakers = room.speakers.map { it.copy(delayMillis = 0) }) }
             MainAction.PlayCalibration -> play(calibration = true)
             is MainAction.MoveSpeaker -> if (action.position.x.isFinite() && action.position.y.isFinite()) {
@@ -174,10 +175,11 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         if (before.selectedSetupId != after.selectedSetupId || before.demoMode != after.demoMode ||
             routes(before).map { it.endpointId }.toSet() != routes(after).map { it.endpointId }.toSet() ||
             before.selectedSetup?.calibrationReference?.id != after.selectedSetup?.calibrationReference?.id ||
+            before.selectedSetup?.driftCorrectionEnabled != after.selectedSetup?.driftCorrectionEnabled ||
             routes(before).map { it.endpointId to it.delayMillis } != routes(after).map { it.endpointId to it.delayMillis }) {
             stopPlayback()
-            if (action is MainAction.SetDelay || action is MainAction.SelectCalibrationReference || action == MainAction.ResetDelays) {
-                mutableState.update { it.copy(feedback = "Calibration changed. Press Play or Play calibration cues to restart with the new delay.") }
+            if (action is MainAction.SetDelay || action is MainAction.SelectCalibrationReference || action is MainAction.SetDriftCorrection || action == MainAction.ResetDelays) {
+                mutableState.update { it.copy(feedback = "Timing settings changed. Press Play to restart; calibration cues use manual delay only.") }
             }
         } else if (action is MainAction.SetVolume || action is MainAction.AssignChannel) {
             val latest = routes(after)
@@ -337,16 +339,18 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             current.demoMode -> "Demo speakers cannot play audio. Switch Demo mode off and select real outputs."
             speakers.size !in 1..MAX_PLAYBACK_OUTPUTS -> "Add one or two real outputs to this room for playback."
             calibration && speakers.size != 2 -> "Add two real outputs to compare calibration cues."
+            !calibration && current.selectedSetup?.driftCorrectionEnabled == true && speakers.size != 2 -> "Experimental drift correction needs two real outputs. Add another output or disable correction."
             speakers.any { it.isSample || it.availability != OutputAvailability.Active } -> "Every room output must be available before playback."
             current.outputs.status != AudioOutputStatus.Ready -> "Refresh outputs successfully before playback."
-            calibration && current.selectedSetup?.calibrationReference?.delayMillis != 0 -> "The calibration reference must have zero delay."
+            (calibration || current.selectedSetup?.driftCorrectionEnabled == true) && current.selectedSetup?.calibrationReference?.delayMillis != 0 -> "The calibration reference must have zero delay."
             else -> null
         }
         if (error != null) mutableState.update { it.copy(feedback = error) }
         else {
             requestedTestEndpointId = null
             if (calibration) playbackController?.calibrate(routes(current), current.selectedSetup!!.calibrationReference!!.output!!.endpointId)
-            else playbackController?.play(routes(current))
+            else playbackController?.play(routes(current), if (current.selectedSetup?.driftCorrectionEnabled == true)
+                current.selectedSetup!!.calibrationReference!!.output!!.endpointId else null)
         }
     }
 

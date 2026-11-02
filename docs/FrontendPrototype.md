@@ -9,6 +9,8 @@ user-run. The historical prototype verification below remains distinct.
 Real-mode inspector controls now include bounded manual delay and a zero-delay
 reference, with calibration cues and optional engine diagnostics in the workspace.
 See [TimingCalibration](TimingCalibration.md); Demo mode remains silent.
+The same panel now contains explicit experimental file-playback drift opt-in and
+per-output rate/skew/uncertainty diagnostics; see [ClockDriftCorrection](ClockDriftCorrection.md).
 
 This is an interactive Windows Compose Multiplatform/Material 3 workspace.
 It implements the [Main setup workspace Figma frame](https://www.figma.com/design/00yms4g5bXQxxiZVINVXo3/AllConnect?node-id=3-3901)

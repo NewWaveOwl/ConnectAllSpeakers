@@ -16,8 +16,10 @@ interface AudioPlaybackController {
 
     /** Starts at the beginning, or resumes a paused session with the same explicit endpoints.
      * @param routes One or two unique, available render endpoints with deliberate source mapping.
+     * @param driftReferenceEndpointId Opt-in experimental two-output clock correction; null disables it.
+     * The selected reference must have zero manual delay. Calibration cues/tests are unaffected.
      */
-    fun play(routes: List<PlaybackRoute>)
+    fun play(routes: List<PlaybackRoute>, driftReferenceEndpointId: String? = null)
 
     /** Pauses all outputs, retaining their queued frames for an explicit Resume action. */
     fun pause()

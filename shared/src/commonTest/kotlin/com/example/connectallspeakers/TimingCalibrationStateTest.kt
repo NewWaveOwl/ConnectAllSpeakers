@@ -27,7 +27,7 @@ class TimingCalibrationStateTest {
         val tests = mutableListOf<PlaybackRoute>()
         var stops = 0
         override fun loadFile(path: String) = Unit
-        override fun play(routes: List<PlaybackRoute>) { plays += routes }
+        override fun play(routes: List<PlaybackRoute>, driftReferenceEndpointId: String?) { plays += routes }
         override fun pause() = Unit
         override fun stop() { stops++ }
         override fun updateRoutes(routes: List<PlaybackRoute>) = Unit

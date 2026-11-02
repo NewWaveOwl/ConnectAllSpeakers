@@ -19,10 +19,15 @@ Play/Pause/Stop/Test controls. Manual 0–500 ms per-output delay, repeatable
 calibration cues and labeled engine timing diagnostics are implemented; delay
 edits stop playback for an explicit restart. The user reports playback works on
 their Windows PC; acoustic calibration results and broader compatibility remain
-unverified. Persistence, EQ, clock-drift correction, sustained synchronization and surround
+unverified. Opt-in experimental two-output drift correction now uses bounded
+cubic resampling, portable diagnostics and explicit degraded/stop policies.
+It is off by default and validated with fake clocks/PCM only; measured acoustic
+evidence is still needed before final tuning or synchronization claims.
+Persistence, EQ, production synchronization and surround
 remain planned. See [FrontendPrototype](FrontendPrototype.md),
 [WindowsOutputDiscovery](WindowsOutputDiscovery.md) and
-[WindowsPlayback](WindowsPlayback.md) and [TimingCalibration](TimingCalibration.md)
+[WindowsPlayback](WindowsPlayback.md), [TimingCalibration](TimingCalibration.md)
+and [ClockDriftCorrection](ClockDriftCorrection.md)
 for scope, limits and user-operated measurement/checklists.
 
 Selected playback approach: [MainDesign — direct Windows playback](MainDesign.md).
@@ -66,7 +71,7 @@ ConnectAllSpeakers/                 repository / Gradle root
     main.kt                        Windows desktop composition/window lifecycle
     audio/windows/                 Core Audio COM calls and notification bindings
     audio/wasapi/                  shared-mode rendering and native lifetime
-    audio/dsp/                     bounded decoding, routing/gain, delay and calibration cues
+    audio/dsp/                     bounded decoding, gain/channel, delay, cubic resampling and cues
     data/audio/windows/            single-worker discovery repository and cleanup
   androidApp/src/main/             retained Android launcher
   webApp/src/webMain/              retained web launcher; not an active audio target

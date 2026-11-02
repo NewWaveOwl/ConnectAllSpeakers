@@ -6,8 +6,8 @@ Start with Approach 1: one Windows PC connects directly to two Bluetooth speaker
 Our app processes and routes the audio using Windows APIs. No external mixer app,
 receiver phones or custom hardware is required by this design.
 
-**Status:** experimental local WAV/MP3 rendering, engine timing diagnostics and
-manual per-speaker delay implemented. The user reports working playback on their
+**Status:** experimental local WAV/MP3 rendering, engine timing diagnostics,
+manual per-speaker delay and opt-in clock-drift correction implemented. The user reports working playback on their
 Windows PC (November 1, 2026). This update's acoustic calibration measurements,
 broader hardware compatibility and release checks remain unverified.
 
@@ -67,11 +67,16 @@ do not silently duplicate audio or switch to the default speaker.
 ## Timing and later work
 
 Delay buffers can hold back a faster speaker to match a slower one. Fixed delay
-does not correct clock drift; sustained synchronization needs measurement and
-later drift correction. Speaker count and reliability depend on hardware/drivers.
+does not correct clock drift. [Experimental drift correction](ClockDriftCorrection.md)
+now tracks native clocks relative to the same reference and applies bounded,
+smoothed cubic resampling to the follower. It preserves the initial engine
+offset/manual delay, stops on unreliable clocks and remains off by default.
+Its provisional parameters have synthetic evidence only; sustained acoustic
+alignment and sound quality still need user measurements before final tuning.
+Speaker count and reliability depend on hardware/drivers.
 
 Local-file stereo, individual gain/channel controls and manual delay are now
-implemented. Acoustic validation and clock-drift correction remain before any
+implemented. Acoustic validation and production hardening remain before any
 sustained synchronization claim; saved groups and additional outputs follow.
 System-audio capture, 2.1/7.1 and Android
 playback are separate later features.

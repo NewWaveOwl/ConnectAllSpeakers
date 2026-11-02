@@ -61,6 +61,7 @@ class WindowsAudioPlaybackController internal constructor(
     private var source: DecodedAudio? = null
     private var session: PlaybackRenderSession? = null
     private var sessionIds: Set<String> = emptySet()
+    private var sessionDriftReference: String? = null
     private var testing = false
     private var calibrating = false
     private var paused = false
@@ -102,7 +103,9 @@ class WindowsAudioPlaybackController internal constructor(
                             } else measured
                             timingSequence++
                             nextMeasurementNanos = finished + 200_000_000L
-                            mutablePlayback.value = mutablePlayback.value.copy(outputTimings = lastTimings, timingSequence = timingSequence)
+                            val driftStatus = lastTimings.firstOrNull { it.drift?.isReference == false }?.drift
+                            mutablePlayback.value = mutablePlayback.value.copy(outputTimings = lastTimings, timingSequence = timingSequence,
+                                message = driftStatus?.let { "Experimental drift: ${it.phase} · ${it.message}" } ?: mutablePlayback.value.message)
                         }
                     } catch (failure: Exception) { failSession(failure) }
                 }
@@ -114,12 +117,14 @@ class WindowsAudioPlaybackController internal constructor(
 
     /** @param path User-selected local WAV/MP3 path. Loading closes the current session; never auto-plays. */
     override fun loadFile(path: String) { enqueue(Kind.Load, path = path) }
-    /** @param routes One or two unique explicitly selected, currently active render endpoints. */
-    override fun play(routes: List<PlaybackRoute>) {
+    /** @param routes One or two unique explicitly selected, currently active render endpoints.
+     * @param driftReferenceEndpointId Optional zero-delay reference for experimental two-output file correction.
+     */
+    override fun play(routes: List<PlaybackRoute>, driftReferenceEndpointId: String?) {
         if (closed.get()) return
         val snapshot = routes.toList()
         liveRoutes.set(snapshot)
-        enqueue(Kind.Play, routes = snapshot)
+        enqueue(Kind.Play, routes = snapshot, referenceEndpointId = driftReferenceEndpointId)
     }
     /** Pauses the existing buffers; the next Play resumes them. */
     override fun pause() { enqueue(Kind.Pause) }
@@ -184,11 +189,15 @@ class WindowsAudioPlaybackController internal constructor(
                 }
                 Kind.Play -> {
                     validate(command.routes)
+                    require(command.referenceEndpointId == null || command.routes.size == 2 && command.routes.any {
+                        it.endpointId == command.referenceEndpointId && it.delayMillis == 0
+                    }) { "Drift correction needs two outputs and an explicit zero-delay reference." }
                     if (session != null && paused && !testing && !calibrating && command.routes.map { it.endpointId }.toSet() == sessionIds &&
+                        command.referenceEndpointId == sessionDriftReference &&
                         command.routes.all { route -> lastTimings.any { it.endpointId == route.endpointId && it.delayMillis == route.delayMillis } }) {
                         session!!.resume { checkCurrent(command.epoch) }
                         paused = false
-                        publish(PlaybackPhase.Playing, "Playing · manual delay applied; acoustic timing is unverified.", session!!.positionMillis)
+                        publish(PlaybackPhase.Playing, playingMessage(), session!!.positionMillis)
                     } else start(command, source ?: error("Choose a WAV or MP3 file first."), false)
                 }
                 Kind.Test -> start(command, speakerTestTone(), true)
@@ -228,9 +237,10 @@ class WindowsAudioPlaybackController internal constructor(
         lastTimings = emptyList()
         nextMeasurementNanos = Long.MIN_VALUE
         sessionIds = command.routes.map { it.endpointId }.toSet()
+        sessionDriftReference = command.referenceEndpointId.takeIf { command.kind == Kind.Play }
         mutablePlayback.value = PlaybackSnapshot(PlaybackPhase.Starting, audio.description,
             activeEndpointIds = sessionIds, isTestTone = test, isCalibration = calibration, message = "Opening selected outputs…")
-        val prepared = PlaybackRenderSession(audio, deviceFactory())
+        val prepared = PlaybackRenderSession(audio, deviceFactory(), sessionDriftReference, monotonicNanos)
         session = prepared
         prepared.prepare(liveRoutes.get()) {
             checkCurrent(command.epoch)
@@ -241,7 +251,7 @@ class WindowsAudioPlaybackController internal constructor(
         publish(PlaybackPhase.Playing, when {
             test -> "Test tone · ${SPEAKER_TEST_DURATION_MILLIS / 1000} seconds. Press Stop to end early."
             calibration -> "Calibration: 3-second warmup, then one pulse per second. Engine timing is not acoustic latency."
-            else -> "Playing · manual delay applied; acoustic timing is unverified."
+            else -> playingMessage()
         })
     }
 
@@ -280,11 +290,17 @@ class WindowsAudioPlaybackController internal constructor(
         if (previous != null) lastTimings = previous.timingSnapshot().map { it.unavailable("Session ended; live timing unavailable") }
         session = null
         sessionIds = emptySet()
+        sessionDriftReference = null
         paused = false
         testing = false
         calibrating = false
         previous?.close()
     }
+
+    /** @return Explicit experimental/uncalibrated status; clocks never establish acoustic alignment. */
+    private fun playingMessage(): String = if (sessionDriftReference != null)
+        "Playing · experimental clock drift correction enabled; inspect engine timing. Acoustic alignment is unverified."
+        else "Playing · manual delay applied; drift correction off; acoustic timing is unverified."
 
     /** @param failure Sanitized backend/source failure; native errors contain no endpoint identifiers. */
     private fun failSession(failure: Exception) {

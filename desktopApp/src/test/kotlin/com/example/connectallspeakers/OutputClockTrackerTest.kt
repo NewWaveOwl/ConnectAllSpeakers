@@ -36,10 +36,12 @@ class OutputClockTrackerTest {
     @Test fun backwardClockOrFrequencyChangeCannotReplaceValidHistory() {
         val tracker = OutputClockTracker()
         tracker.observe(reading(), 0, 600.0, false)
-        for (sample in listOf(reading(95_999), reading(qpc = 19_999_999), reading().copy(frequencyTicksPerSecond = 384_000))) {
+        for (sample in listOf(reading(95_999), reading(qpc = 19_999_999), reading().copy(frequencyTicksPerSecond = 384_000),
+            reading().copy(frequencyTicksPerSecond = 1))) {
             tracker.observe(sample, 100, 600.0, false)
             assertNull(tracker.value)
             assertTrue(tracker.message!!.contains("discontinuity"))
+            assertTrue(tracker.discontinuityDetected)
         }
         tracker.observe(reading(100_000, 21_000_000), 200, 600.0, false)
         assertNotNull(tracker.value)
