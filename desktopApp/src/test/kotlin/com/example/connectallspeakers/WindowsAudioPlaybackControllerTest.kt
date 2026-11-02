@@ -113,9 +113,11 @@ class WindowsAudioPlaybackControllerTest {
             assertEquals(10L, controller.playback.value.positionMillis)
             controller.testSpeaker(routes.first()); runCurrent()
             assertTrue(controller.playback.value.isTestTone)
+            assertEquals(10_000L, controller.playback.value.source?.durationMillis)
             assertEquals(setOf("a"), controller.playback.value.activeEndpointIds)
             controller.stop(); runCurrent()
             assertEquals("file.wav", controller.playback.value.source?.name)
+            assertEquals(1, devices.last().closed)
         } finally { controller.close(); controller.awaitClosed() }
     }
     @Test fun invalidRoutesAndDecodeFailureNeverOpenNativeFactory() = runTest {

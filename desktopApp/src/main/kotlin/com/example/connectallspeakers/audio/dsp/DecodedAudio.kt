@@ -1,6 +1,7 @@
 package com.example.connectallspeakers.audio.dsp
 
 import com.example.connectallspeakers.model.audio.PlaybackSource
+import com.example.connectallspeakers.model.audio.SPEAKER_TEST_DURATION_MILLIS
 import kotlin.math.PI
 import kotlin.math.min
 import kotlin.math.sin
@@ -22,16 +23,17 @@ internal class DecodedAudio(val name: String, val sampleRate: Int, val channels:
     val description: PlaybackSource get() = PlaybackSource(name, frames * 1000L / sampleRate, sampleRate, channels)
 }
 
-/** Creates a one-second stereo test tone at 10% peak amplitude, with 10 ms click-reducing ramps.
+/** Creates a continuous ten-second stereo test tone at 10% peak, with 10 ms click-reducing ramps.
  * This only creates samples; it never opens or plays an audio device.
  * @return Worker-owned 440 Hz test source; both source channels contain the same signal.
  */
 internal fun speakerTestTone(): DecodedAudio {
     val rate = 48_000
-    val data = FloatArray(rate * 2)
+    val frames = (rate * SPEAKER_TEST_DURATION_MILLIS / 1000).toInt()
+    val data = FloatArray(frames * 2)
     val rampFrames = rate / 100
-    for (frame in 0 until rate) {
-        val envelope = min(1.0, min(frame.toDouble() / rampFrames, (rate - 1 - frame).toDouble() / rampFrames))
+    for (frame in 0 until frames) {
+        val envelope = min(1.0, min(frame.toDouble() / rampFrames, (frames - 1 - frame).toDouble() / rampFrames))
         val sample = (sin(2.0 * PI * 440.0 * frame / rate) * .1 * envelope).toFloat()
         data[frame * 2] = sample; data[frame * 2 + 1] = sample
     }
