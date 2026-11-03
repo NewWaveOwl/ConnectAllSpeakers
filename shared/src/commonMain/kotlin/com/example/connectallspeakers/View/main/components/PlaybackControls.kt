@@ -41,8 +41,8 @@ fun PlaybackControls(playback: PlaybackSnapshot, demoMode: Boolean, onAction: (M
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(TransportGap)) {
             WorkspaceButton("Choose audio", { onAction(MainAction.ChooseAudioFile) }, enabled = supported && !busy)
             WorkspaceButton(if (paused && !playback.isTestTone) "Resume" else "Play", { onAction(MainAction.Play) },
-                glyph = Glyph.Play, primary = true, enabled = supported && !busy && !running && playback.source != null && !playback.isTestTone)
-            WorkspaceButton("Pause", { onAction(MainAction.Pause) }, enabled = supported && running && !playback.isTestTone)
+                glyph = Glyph.Play, primary = true, enabled = supported && !busy && !running && playback.source != null && !playback.isTestTone && !playback.isCalibration)
+            WorkspaceButton("Pause", { onAction(MainAction.Pause) }, enabled = supported && running && !playback.isTestTone && !playback.isCalibration)
             WorkspaceButton("Stop", { onAction(MainAction.Stop) }, enabled = supported && (running || paused || busy))
         }
         playback.source?.let { source ->
@@ -52,7 +52,7 @@ fun PlaybackControls(playback: PlaybackSnapshot, demoMode: Boolean, onAction: (M
         Text(if (demoMode) "Demo speakers cannot play audio. Switch Demo mode off to use Windows outputs."
             else playback.message.orEmpty(), color = if (playback.phase == PlaybackPhase.Error) MaterialTheme.colorScheme.error else C.Teal,
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-        Text("1–2 outputs · Left/Right isolates that source channel; Mono mixes both · Timing is not calibrated",
+        Text("1–2 outputs · Manual delay applies on restart · Experimental drift option in Manual calibration · Acoustic alignment is unverified",
             color = C.Muted, style = MaterialTheme.typography.bodySmall)
     }
 }

@@ -2,6 +2,7 @@ package com.example.connectallspeakers.model
 
 import com.example.connectallspeakers.model.audio.AudioOutputDevice
 import com.example.connectallspeakers.model.audio.OutputAvailability
+import com.example.connectallspeakers.model.audio.MAX_OUTPUT_DELAY_MILLIS
 
 /** Explicit presentation channels; dragging never changes this assignment.
  * @property label Inspector label.
@@ -27,6 +28,7 @@ data class RoomPosition(val x: Float, val y: Float)
  * @property position Normalized top-left card travel.
  * @property homePosition Position restored by Reset positions.
  * @property output Windows endpoint metadata; null only for explicit demo samples.
+ * @property delayMillis Manual delay in whole milliseconds, validated to 0..500.
  */
 data class RoomSpeaker(
     val id: String,
@@ -36,7 +38,9 @@ data class RoomSpeaker(
     val position: RoomPosition,
     val homePosition: RoomPosition = position,
     val output: AudioOutputDevice? = null,
+    val delayMillis: Int = 0,
 ) {
+    init { require(delayMillis in 0..MAX_OUTPUT_DELAY_MILLIS) { "Unsupported speaker delay." } }
     /** True only for an explicit demo sample, never a discovered endpoint. */
     val isSample: Boolean get() = output == null
     /** Presentation status; failed discovery is distinguished from a known disconnection. */
@@ -46,10 +50,12 @@ data class RoomSpeaker(
 /** Immutable room edits retained independently for this application session.
  * @property id Stable setup identity.
  * @property name User-visible room name.
- * @property speakers Sample instances owned by this setup.
+ * @property speakers Real or explicit sample instances owned by this setup.
  * @property selectedSpeakerId Selected instance, or null for an empty room.
  * @property snapToGrid Whether completed moves snap to the room grid.
  * @property zoom Visual scale from 0.75 to 1.5, keeping every card within the canvas.
+ * @property calibrationReferenceSpeakerId Explicit reference card, or null to use the first room card.
+ * @property driftCorrectionEnabled Explicit experimental opt-in for two-output local-file playback.
  */
 data class RoomSetup(
     val id: String,
@@ -58,7 +64,12 @@ data class RoomSetup(
     val selectedSpeakerId: String? = speakers.lastOrNull()?.id,
     val snapToGrid: Boolean = true,
     val zoom: Float = 1f,
-)
+    val calibrationReferenceSpeakerId: String? = null,
+    val driftCorrectionEnabled: Boolean = false,
+) {
+    /** Calibration reference; missing references fall back to the first card without replacing any endpoint. */
+    val calibrationReference: RoomSpeaker? get() = speakers.find { it.id == calibrationReferenceSpeakerId } ?: speakers.firstOrNull()
+}
 
 /** Creates explicit sample fixtures with globally distinct instance IDs.
  * @return Three independent rooms; Living room starts with Studio Right selected.

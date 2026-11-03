@@ -17,6 +17,10 @@ import com.example.connectallspeakers.model.audio.PlaybackRoute
 import com.example.connectallspeakers.model.audio.PlaybackPhase
 import com.example.connectallspeakers.model.audio.SPEAKER_TEST_DURATION_MILLIS
 import com.example.connectallspeakers.model.audio.MAX_PLAYBACK_OUTPUTS
+import com.example.connectallspeakers.model.audio.MAX_OUTPUT_DELAY_MILLIS
+import com.example.connectallspeakers.model.audio.TIMING_STALE_AFTER_MILLIS
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import com.example.connectallspeakers.state.MainDialog
 import com.example.connectallspeakers.state.MainUiState
 import kotlinx.coroutines.CoroutineScope
@@ -50,16 +54,41 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
     private var inactiveSelection: String? = "living"
     private var inactiveSaves: Map<String, RoomSetup> = emptyMap()
     private val ownerScope = collectionScope ?: viewModelScope
+    private var timingExpiry: Job? = null
+    private var receivedTimingSequence: Long? = null
+    private var expiredTimingSequence: Long? = null
 
     init {
         if (playbackController != null) ownerScope.launch {
             playbackController.playback.collect { playback ->
+                if (playback.outputTimings.none { it.isLive }) {
+                    timingExpiry?.cancel()
+                    receivedTimingSequence = null
+                    expiredTimingSequence = null
+                } else if (receivedTimingSequence != playback.timingSequence) {
+                    timingExpiry?.cancel()
+                    val sequence = playback.timingSequence
+                    receivedTimingSequence = sequence
+                    expiredTimingSequence = null
+                    timingExpiry = ownerScope.launch {
+                        delay(TIMING_STALE_AFTER_MILLIS)
+                        expiredTimingSequence = sequence
+                        mutableState.update { current ->
+                            if (current.playback.timingSequence != sequence) current else current.copy(
+                                playback = current.playback.copy(outputTimings = current.playback.outputTimings.map {
+                                    it.unavailable("Timing update is stale; measurements Unknown")
+                                }))
+                        }
+                    }
+                }
+                val presentation = if (expiredTimingSequence == playback.timingSequence) playback.copy(
+                    outputTimings = playback.outputTimings.map { it.unavailable("Timing update is stale; measurements Unknown") }) else playback
                 mutableState.update { current ->
                     val activeTest = when (playback.phase) {
                         PlaybackPhase.Starting, PlaybackPhase.Playing, PlaybackPhase.Paused -> playback.isTestTone
                         else -> false
                     }
-                    current.copy(playback = playback, testingSpeakerId = if (activeTest) {
+                    current.copy(playback = presentation, testingSpeakerId = if (activeTest) {
                         current.selectedSetup?.speakers?.firstOrNull { it.output?.endpointId in playback.activeEndpointIds }?.id
                     } else null)
                 }
@@ -89,6 +118,24 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             is MainAction.RenameSpeaker -> editSelected { it.copy(name = action.name.take(80)) }
             is MainAction.AssignChannel -> editSelected { it.copy(channel = action.channel) }
             is MainAction.SetVolume -> editSelected { it.copy(volume = action.percent.coerceIn(0, 100)) }
+            is MainAction.SetDelay -> {
+                val current = state.value
+                when {
+                    action.millis !in 0..MAX_OUTPUT_DELAY_MILLIS -> mutableState.update { it.copy(feedback = "Delay must be between 0 and $MAX_OUTPUT_DELAY_MILLIS ms.") }
+                    current.demoMode || current.selectedSpeaker?.output == null -> mutableState.update { it.copy(feedback = "Delay calibration uses real Windows outputs.") }
+                    current.selectedSpeaker?.id == current.selectedSetup?.calibrationReference?.id && action.millis != 0 ->
+                        mutableState.update { it.copy(feedback = "The reference stays at 0 ms. Choose the slower speaker as reference, then delay the faster speaker.") }
+                    else -> editSelected { it.copy(delayMillis = action.millis) }
+                }
+            }
+            is MainAction.SelectCalibrationReference -> if (!state.value.demoMode) editRoom { room ->
+                if (room.speakers.none { it.id == action.id && it.output != null }) room else room.copy(
+                    calibrationReferenceSpeakerId = action.id,
+                    speakers = room.speakers.map { if (it.id == action.id) it.copy(delayMillis = 0) else it })
+            }
+            is MainAction.SetDriftCorrection -> if (!state.value.demoMode) editRoom { it.copy(driftCorrectionEnabled = action.enabled) }
+            MainAction.ResetDelays -> editRoom { room -> room.copy(speakers = room.speakers.map { it.copy(delayMillis = 0) }) }
+            MainAction.PlayCalibration -> play(calibration = true)
             is MainAction.MoveSpeaker -> if (action.position.x.isFinite() && action.position.y.isFinite()) {
                 editRoom { room -> room.copy(speakers = room.speakers.map {
                     if (it.id == action.id) it.copy(position = RoomPosition(
@@ -126,8 +173,14 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         }
         val after = state.value
         if (before.selectedSetupId != after.selectedSetupId || before.demoMode != after.demoMode ||
-            routes(before).map { it.endpointId }.toSet() != routes(after).map { it.endpointId }.toSet()) {
+            routes(before).map { it.endpointId }.toSet() != routes(after).map { it.endpointId }.toSet() ||
+            before.selectedSetup?.calibrationReference?.id != after.selectedSetup?.calibrationReference?.id ||
+            before.selectedSetup?.driftCorrectionEnabled != after.selectedSetup?.driftCorrectionEnabled ||
+            routes(before).map { it.endpointId to it.delayMillis } != routes(after).map { it.endpointId to it.delayMillis }) {
             stopPlayback()
+            if (action is MainAction.SetDelay || action is MainAction.SelectCalibrationReference || action is MainAction.SetDriftCorrection || action == MainAction.ResetDelays) {
+                mutableState.update { it.copy(feedback = "Timing settings changed. Press Play to restart; calibration cues use manual delay only.") }
+            }
         } else if (action is MainAction.SetVolume || action is MainAction.AssignChannel) {
             val latest = routes(after)
             val testEndpoint = requestedTestEndpointId ?: after.playback.takeIf { it.isTestTone }?.activeEndpointIds?.singleOrNull()
@@ -272,25 +325,32 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
 
     /** @param snapshot Session to inspect. @return Real routes, preserving names/positions separately. */
     private fun routes(snapshot: MainUiState): List<PlaybackRoute> = snapshot.selectedSetup?.speakers.orEmpty().mapNotNull { speaker ->
-        speaker.output?.let { PlaybackRoute(it.endpointId, speaker.channel, speaker.volume) }
+        speaker.output?.let { PlaybackRoute(it.endpointId, speaker.channel, speaker.volume, speaker.delayMillis) }
     }
 
-    /** Validates the entire room rather than silently omitting unavailable/demo/extra outputs. */
-    private fun play() {
+    /** Validates the entire room rather than silently omitting unavailable/demo/extra outputs.
+     * @param calibration Whether to play generated matching cues instead of the retained local file.
+     */
+    private fun play(calibration: Boolean = false) {
         val current = state.value
         val speakers = current.selectedSetup?.speakers.orEmpty()
         val error = when {
             playbackController == null -> "Playback is available in the Windows desktop app only."
             current.demoMode -> "Demo speakers cannot play audio. Switch Demo mode off and select real outputs."
             speakers.size !in 1..MAX_PLAYBACK_OUTPUTS -> "Add one or two real outputs to this room for playback."
+            calibration && speakers.size != 2 -> "Add two real outputs to compare calibration cues."
+            !calibration && current.selectedSetup?.driftCorrectionEnabled == true && speakers.size != 2 -> "Experimental drift correction needs two real outputs. Add another output or disable correction."
             speakers.any { it.isSample || it.availability != OutputAvailability.Active } -> "Every room output must be available before playback."
             current.outputs.status != AudioOutputStatus.Ready -> "Refresh outputs successfully before playback."
+            (calibration || current.selectedSetup?.driftCorrectionEnabled == true) && current.selectedSetup?.calibrationReference?.delayMillis != 0 -> "The calibration reference must have zero delay."
             else -> null
         }
         if (error != null) mutableState.update { it.copy(feedback = error) }
         else {
             requestedTestEndpointId = null
-            playbackController?.play(routes(current))
+            if (calibration) playbackController?.calibrate(routes(current), current.selectedSetup!!.calibrationReference!!.output!!.endpointId)
+            else playbackController?.play(routes(current), if (current.selectedSetup?.driftCorrectionEnabled == true)
+                current.selectedSetup!!.calibrationReference!!.output!!.endpointId else null)
         }
     }
 
@@ -315,7 +375,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         }
         val id = selected.id
         requestedTestEndpointId = output.endpointId
-        playbackController.testSpeaker(PlaybackRoute(output.endpointId, selected.channel, selected.volume))
+        playbackController.testSpeaker(PlaybackRoute(output.endpointId, selected.channel, selected.volume, selected.delayMillis))
         mutableState.update { it.copy(testingSpeakerId = id,
             feedback = "${SPEAKER_TEST_DURATION_MILLIS / 1000}-second test requested for ${selected.name}. App volume: ${selected.volume}%. Press Stop to end early.") }
     }

@@ -36,8 +36,11 @@ reroute an active session.
   channel. A mono file supplies the same sample to Left, Right and Mono.
 - App volume is linear gain from 0–100%, applied before queuing. It does not
   change Windows master volume. Samples are bounded to [-1, 1]; there is no boost,
-  limiter, EQ, delay compensation or calibration. Already queued audio may take
-  roughly a buffer plus device/Bluetooth latency to reflect an edit.
+  limiter or EQ. Manual delay adds a bounded 0–500 ms per-output FIFO after gain
+  and channel mapping. Already buffered audio may take the configured delay,
+  native queue and device/Bluetooth latency to reflect a gain/channel edit.
+  See [TimingCalibration](TimingCalibration.md) for reference selection,
+  frame rounding, resets, engine diagnostics and the acoustic measurement procedure.
 - Test speaker explicitly stops file playback and requests a ten-second 440 Hz
   tone at -20 dBFS peak before app gain, with 10 ms ramps, on that card only.
   The longer continuous signal gives slower outputs time to become audible.
@@ -45,7 +48,7 @@ reroute an active session.
   The previously loaded file remains available; the test does not resume it.
 - Pause retains each native queue; Resume continues it. Stop releases all streams
   and resets file position. Play after Stop, completion or failure starts at zero.
-- Changing rooms, demo mode or room endpoint membership stops playback. Renaming,
+- Changing delay/reference, rooms, demo mode or room endpoint membership stops playback. Renaming,
   selection, dragging, snap/zoom and Reset positions do not change audio routing.
 - A confirmed removal, endpoint failure, invalid buffer or detected underrun
   stops the whole session and reports an error. Cards keep their endpoint IDs and
@@ -53,8 +56,10 @@ reroute an active session.
   A discovery loading/error state alone is not proof of disconnection. Native
   calls may still fail if Windows invalidates the endpoint before enumeration.
 
-The outputs have independent clocks and are started sequentially. This milestone
-does **not** provide synchronized stereo, drift correction, measured latency,
+The outputs have independent clocks and are started sequentially. Optional
+[experimental drift correction](ClockDriftCorrection.md) now resamples the follower
+within fixed limits, off by default. The current app does **not** provide
+guaranteed synchronized stereo or measured acoustic latency,
 gapless playback, seeking/looping, system-audio capture, a virtual driver, pairing,
 persistence or an Android playback service. Audible simultaneous output and
 compatibility remain unverified until the user performs the checks below.
@@ -91,7 +96,9 @@ GetBuffer/ReleaseBuffer remain on the worker; an unsuccessful copy releases the
 block as silence. Stop/reset/release runs for every endpoint even if another
 cleanup operation fails. COM task allocations are freed, COM is balanced on the
 initializing thread, and normal window close awaits playback cleanup before
-closing discovery. No native playback session is created before Play or Test.
+closing discovery. No native playback session is created before explicit Play,
+Test speaker or Play calibration cues. The optional clock service is acquired
+and released with its endpoint on that same worker.
 
 ## Manual checks — user operates the hardware
 
@@ -245,6 +252,75 @@ unchanged peak/ramped ends, signal remaining after eight seconds, engine-owned
 highlight completion/error/Stop behavior, and early stream cleanup. The rebuilt
 app was not launched and no sound was played by the agent.
 
+### Timing and manual calibration — November 2, 2026
+
+- Desktop compilation, shared JVM tests, desktop tests, Android `assembleDebug`
+  and Windows `createDistributable`: **passed**. The Windows app image was rebuilt
+  and inspected for the delay, calibration-signal, clock-tracker, native-clock
+  and controller classes; it was **not launched**.
+- Shared: **32 passed** in 6 suites; desktop: **72 passed** in 13 suites. Total:
+  **104 passed**, with zero failures, errors or skips. This adds 25 focused tests
+  to the preceding 79-test baseline. No ordinary test enumerates/opens audio devices.
+- Offline coverage includes multiple source rates, exact zero/positive/max-delay
+  PCM and full EOF drain, mono/stereo routing/gain, bounded allocations/queues,
+  pause/resume/restart, cancellation, reference/room isolation, metadata changes,
+  stale/invalid clocks, slow measurement batches, presentation freshness,
+  underrun counters, loaded-file retention and native clock ABI/resource release.
+- Static offscreen Compose fixtures were visually inspected at 1440 × 900,
+  1440 × 1600 and 840 × 1800. The collapsed panel preserves the room canvas;
+  expanded controls, Unknown diagnostics and delay labels were readable.
+  Pointer changes emitted delay actions and Configure/engine-detail toggles
+  worked in the fixture. This did not use desktop app assembly or native audio.
+  The temporary rendering helper is excluded from delivered tests; full live
+  desktop resizing/scrolling/keyboard-focus checks remain user-run.
+- `git diff --check` and shared/native import-boundary checks passed. Dependency
+  versions are unchanged. The existing Android SDK XML and test non-null assertion
+  warnings remain; no new toolchain workarounds were added.
+- The agent ran no app launch, live enumeration, native playback session, audible,
+  Bluetooth, acoustic, real endpoint cleanup or installer checks. Initial/residual
+  acoustic offset, a tested target tolerance and actual device/driver/format
+  results remain pending. Use the [manual measurement procedure and report](TimingCalibration.md).
+  Fixed delay does not implement the drift-correction milestone (#7).
+
+### Experimental clock drift — November 2, 2026
+
+- The preceding timing/calibration work was committed separately as `bd54127`.
+  Drift changes are on `codex/clock-drift-correction`; no hardware result is
+  inferred from that commit or the existing user's playback confirmation.
+- Desktop compilation, shared JVM tests, desktop tests, Android `assembleDebug`
+  and Windows `createDistributable`: **passed**. Inspected packaged DSP/servo and
+  shared drift-diagnostic classes. The rebuilt app image was **not launched**.
+- Shared: **36 passed** in 7 suites; desktop: **94 passed** in 17 suites.
+  **130 total passed**, zero failures/errors/skips. This adds 26 focused tests
+  covering source interpolation/history, exact neutral bypass, channel/gain
+  integrity, actual delay/EOF drain with active correction, queue bounds,
+  reference/opt-in isolation, stale packets, cleanup, virtual clocks, jitter,
+  unavailable/discontinuous clocks, capped demand and pause/rebaseline behavior.
+- Synthetic twenty-minute ±50/±200/±500 ppm clocks met the declared ≤1 ms
+  residual-source-skew target from 120 s onward; maximum measured residual was
+  below 0.374 ms. Final-minute correction variation was below 0.01 ppm. Five-minute
+  actual PCM/native-style queue simulations at ±200 ppm measured residuals below
+  0.435 ms, with fixed 800-frame/8 kHz queues. See [actual fake-clock results and method](ClockDriftCorrection.md#offline-evidence-and-remaining-acoustic-acceptance).
+- Generated and independently read all samples of the twenty-minute 8 kHz stereo
+  PCM16 fixture. Verified 9,600,000 frames, identical channels, 80 ms pulses and
+  silence after the warmup, peak ≤3277/32767 and 38,400,044-byte file size. It fits
+  the WAV decoder's 64 MiB sample-data limit. No sound was played.
+- Static offscreen fixtures at 1440 × 900, 1440 × 2000 and 840 × 2000 verified
+  the compact/expanded controls, experimental switch, selected-speaker settings
+  and readable drift/uncertainty/frame-unit labels. Configure/detail actions
+  operated in the isolated fixture. No native app assembly/services were used;
+  live desktop keyboard/focus/resizing and hardware quality checks remain user-run.
+- Dependency versions are unchanged. The existing temporary-path workaround was
+  reused; the existing Android SDK XML and baseline test assertion warnings remain.
+  `git diff --check`, documentation links and shared/native import boundaries passed.
+- Hardware discovery, native playback, acoustic initial/residual calibration,
+  sustained start/end sound-arrival skew, quality, disconnect/shutdown and
+  installer checks were not run by the agent. The opt-in remains experimental
+  and off by default pending user evidence tracked in stability issue #10 and
+  final parameter review. Closing implementation issues #6/#7 does not mark
+  their unperformed acoustic checks as passed.
+  Use the [twenty-minute procedure/report](ClockDriftCorrection.md#user-operated-twenty-minute-check).
+
 ### Changed implementation areas
 
 | Area | Files |
@@ -254,6 +330,8 @@ app was not launched and no sound was played by the agent.
 | Windows assembly/control | desktop `main.kt`, `data/audio/windows/WindowsAudioPlaybackController.kt` |
 | Decoder/processing | desktop `audio/dsp/AudioFileDecoder.kt`, `LocalAudioFileDecoder.kt`, `DecodedAudio.kt`, `WavFileDecoder.kt`, `Mp3FileDecoder.kt`, `Mp3FrameLayout.kt`, `ChannelRenderer.kt` |
 | Native rendering | desktop `audio/wasapi/WasapiDeviceSession.kt`, `PlaybackDeviceSession.kt`, `PlaybackRenderSession.kt` |
+| Manual timing/calibration | shared `model/audio/OutputTiming.kt`, room reference/delay state and calibration/inspector controls; desktop `PcmDelayLine.kt`, `CalibrationSignal.kt`, `OutputClockTracker.kt`, `WasapiClock.kt`; [procedure/report](TimingCalibration.md) |
+| Experimental drift | shared `OutputDriftTiming.kt` and per-room opt-in/reference; desktop `DriftController.kt`, `AdaptivePcmRenderer.kt`, `SourceFrameHistory.kt`; [method/limits/report](ClockDriftCorrection.md) |
 | Offline coverage | shared `PlaybackStateTest.kt`; desktop `ChannelRendererTest.kt`, `WavFileDecoderTest.kt`, `Mp3FileDecoderTest.kt`, `Mp3PlaybackControllerTest.kt`, `PlaybackRenderSessionTest.kt`, `WindowsAudioPlaybackControllerTest.kt`, test-only `PlaybackFakes.kt` |
 | Manual fixtures/documentation | `tools/generate_playback_test_files.py`, `tools/generate_mp3_test_fixtures.py`, original MP3 fixtures under desktop test resources, this checklist, `MainDocs.md`, `MainDesign.md`, `FrontendPrototype.md`, `WindowsOutputDiscovery.md` |
 

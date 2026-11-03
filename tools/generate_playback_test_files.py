@@ -32,10 +32,32 @@ def write_wave(path: Path, rate: int, channels: int, seconds: int) -> None:
             output.writeframes(samples)
 
 
+def write_drift_wave(path: Path) -> None:
+    """Write 20 minutes of identical stereo pulses: 38.4 MB PCM16, within the decoder limit."""
+    rate = 8000
+    with wave.open(str(path), "wb") as output:
+        output.setnchannels(2)
+        output.setsampwidth(2)
+        output.setframerate(rate)
+        for second in range(1200):
+            samples = bytearray()
+            for offset in range(rate):
+                frame = second * rate + offset
+                warmup = second < 3
+                local = frame if warmup else offset
+                length = rate * 3 if warmup else rate * 80 // 1000
+                envelope = min(1.0, local / 40, (length - 1 - local) / 40) if local < length else 0.0
+                value = (0.03 if warmup else 0.1) * envelope * math.sin(2 * math.pi * (440 if warmup else 1000) * frame / rate)
+                sample = round(value * 32767)
+                samples.extend(struct.pack("<hh", sample, sample))
+            output.writeframes(samples)
+
+
 def main() -> None:
     """Generate fixtures only; the user chooses when and where to listen."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--long", action="store_true", help="Also create a 180-second timing-observation file")
+    parser.add_argument("--endurance", action="store_true", help="Also create a 20-minute 8 kHz stereo PCM16 drift-check WAV (38.4 MB)")
     parser.add_argument("--mp3", action="store_true", help="Also encode MP3 copies using a development-only lameenc installation")
     parser.add_argument("--encoder-directory", type=Path, help="Directory containing the optional development encoder")
     args = parser.parse_args()
@@ -52,6 +74,9 @@ def main() -> None:
     if args.long:
         write_wave(destination / "stereo-timing-180s.wav", 48000, 2, 180)
         print(destination / "stereo-timing-180s.wav")
+    if args.endurance:
+        write_drift_wave(destination / "stereo-drift-20min-8000.wav")
+        print(destination / "stereo-drift-20min-8000.wav")
     if args.mp3:
         if args.encoder_directory:
             sys.path.insert(0, str(args.encoder_directory.resolve()))

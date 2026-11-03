@@ -5,10 +5,11 @@ arranging speakers in a room and playing a local audio file through one or two
 selected Windows outputs. It uses Kotlin Multiplatform, Compose Multiplatform
 and Material 3, with Windows Core Audio discovery and WASAPI playback.
 
-**Current state — November 1, 2026:** experimental WAV and MP3 playback is
-implemented. Playback has been reported working on a Windows PC. The outputs
-have independent clocks; calibrated timing, drift correction and synchronized
-stereo are still future work.
+**Current state — November 2, 2026:** experimental WAV/MP3 playback, engine timing
+diagnostics, manual per-output delay and opt-in experimental clock-drift correction
+are implemented. Playback has been reported working on a Windows PC. Drift
+correction is validated with synthetic clocks/PCM; user acoustic calibration,
+sustained hardware results and production synchronization remain pending.
 
 ## What works now
 
@@ -26,6 +27,17 @@ stereo are still future work.
   Windows master volume.
 - Test the selected real output with a ten-second tone. **Play** uses the selected
   file; **Test speaker** uses the built-in tone.
+- Choose a zero-delay reference, delay the faster output by 0–500 ms, and compare
+  repeatable calibration cues. Delay changes stop playback and apply on the next
+  Play. Pause/resume retains the prepared delay; Reset positions preserves it.
+- Inspect labeled per-output clocks, queues, source progress and underruns.
+  Unavailable/stale readings say Unknown. Engine measurements do not measure
+  acoustic/Bluetooth latency. See the [calibration procedure](docs/TimingCalibration.md).
+- Opt into bounded experimental drift correction for two-output file playback.
+  The selected reference keeps its original rate; the follower is resampled
+  gently. Drift, correction and uncertainty are labeled, and unreliable timing
+  stops the session. It is **off by default**; cues/tests use manual delay only.
+  See [method, limits and twenty-minute user checks](docs/ClockDriftCorrection.md).
 - Create, rename and delete setups; rename speakers; drag cards; use snap-to-grid,
   zoom and Reset positions. Moving cards changes the layout, not audio timing.
 - Keep independent room edits and Save setup snapshots **for this session only**.
@@ -74,8 +86,8 @@ for generating the [manual test signals](docs/WindowsPlayback.md#manual-checks--
 
 ## Validation
 
-Latest recorded checks on November 1, 2026: desktop compilation, Android debug
-build and Windows app-image packaging passed; **27 shared JVM tests and 52 desktop
+Latest recorded checks on November 2, 2026: desktop compilation, Android debug
+build and Windows app-image packaging passed; **36 shared JVM tests and 94 desktop
 tests passed**, with zero failures, errors or skips. These automated checks use
 offline fixtures and fake playback outputs. Manual playback was reported
 successful; detailed device/driver and timing measurements are not recorded.
@@ -92,8 +104,10 @@ remain separate verification work.
 
 ## Remaining work
 
-- Acoustic delay calibration, clock-drift correction and synchronized playback.
-- EQ, delay controls, persistent profiles and configuration settings.
+- User-measured acoustic calibration and sustained drift/quality results, then
+  evidence-based tuning/hardening of the experimental correction. Fixed manual
+  delay alone does not correct drift or prove synchronized playback.
+- EQ, persistent profiles and configuration settings.
 - More than two playback outputs, surround and additional source formats.
 - System-wide Windows audio input and the planned [virtual output](docs/WindowsVirtualOutput.md).
 - Android companion/playback capability work. The Android launcher builds, but
@@ -115,6 +129,8 @@ in common code.
 - [Frontend prototype behavior and verification](docs/FrontendPrototype.md)
 - [Windows output discovery](docs/WindowsOutputDiscovery.md)
 - [WAV/MP3 playback, format limits and manual checks](docs/WindowsPlayback.md)
+- [Engine timing, manual delay and acoustic measurement report](docs/TimingCalibration.md)
+- [Experimental clock-drift correction and sustained-playback report](docs/ClockDriftCorrection.md)
 - [Playback design and timing milestones](docs/MainDesign.md)
 - [Production coding guide](docs/AI_HowToWriteCode.md)
 - [Skills and MCP setup](docs/DevelopmentTools.md)

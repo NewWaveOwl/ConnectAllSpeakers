@@ -10,9 +10,10 @@ import com.sun.jna.platform.win32.Guid
 import com.sun.jna.platform.win32.Ole32
 import com.sun.jna.ptr.IntByReference
 import com.sun.jna.ptr.PointerByReference
+import com.sun.jna.ptr.LongByReference
 
 /** Shared-mode WASAPI binding. Construct, use and close on the same dedicated MTA thread.
- * Construction is allowed only after an explicit Play/Test command, never for UI previews/tests.
+ * Construction is allowed only after an explicit playback/test/calibration command, never for UI previews/tests.
  */
 internal class WasapiDeviceSession : PlaybackDeviceSession {
     private var enumerator: Pointer? = null
@@ -45,6 +46,7 @@ internal class WasapiDeviceSession : PlaybackDeviceSession {
         val device = requireNotNull(deviceResult.value)
         var client: Pointer? = null
         var render: Pointer? = null
+        var clock: WasapiClock? = null
         try {
             val state = IntByReference()
             checkAudioResult("Check playback availability", comCall(device, 6, state))
@@ -86,12 +88,23 @@ internal class WasapiDeviceSession : PlaybackDeviceSession {
             val renderResult = PointerByReference()
             checkAudioResult("Create render client", comCall(client, 14, renderIid.pointer, renderResult))
             render = requireNotNull(renderResult.value)
-            val result = WasapiEndpoint(client, render, channels, capacity.value)
+            val clockIid = Guid.GUID("{CD63314F-3FBA-4A1B-812C-EF96358728E7}").also { it.write() }
+            val clockResult = PointerByReference()
+            if (comCall(client, 14, clockIid.pointer, clockResult) >= 0 && clockResult.value != null) {
+                val ownedClock = clockResult.value
+                try { clock = WasapiClock(ownedClock) } catch (failure: Throwable) { releaseCom(ownedClock); throw failure }
+            }
+            val latency = LongByReference()
+            val latencyMillis = if (comCall(client, 5, latency) == 0 && latency.value >= 0) latency.value / 10_000.0 else null
+            val result = WasapiEndpoint(client, render, channels, capacity.value, clock, latencyMillis)
             client = null
             render = null
+            clock = null
             return result
         } finally {
-            try { releaseCom(render) } finally { try { releaseCom(client) } finally { releaseCom(device) } }
+            try { clock?.close() } finally {
+                try { releaseCom(render) } finally { try { releaseCom(client) } finally { releaseCom(device) } }
+            }
         }
     }
 
@@ -109,9 +122,12 @@ internal class WasapiDeviceSession : PlaybackDeviceSession {
  * @param render Owned render service.
  * @property channels Physical output channels.
  * @property capacityFrames Buffer capacity in requested source-rate frames.
+ * @param clock Owned optional clock service.
+ * @property streamLatencyMillis Windows stream latency, or null if unavailable.
  */
 private class WasapiEndpoint(private val client: Pointer, private val render: Pointer,
-    override val channels: Int, override val capacityFrames: Int) : PlaybackEndpoint {
+    override val channels: Int, override val capacityFrames: Int, private val clock: WasapiClock?,
+    override val streamLatencyMillis: Double?) : PlaybackEndpoint {
     private val padding = IntByReference()
     private val buffer = PointerByReference()
     private var closed = false
@@ -121,6 +137,8 @@ private class WasapiEndpoint(private val client: Pointer, private val render: Po
         checkAudioResult("Read playback padding", comCall(client, 6, padding))
         return padding.value
     }
+    /** @return Optional copied engine clock; failed clock readings remain Unknown. */
+    override fun clockReading(): NativeClockReading? = clock?.read()
 
     /** Copies a complete block and balances GetBuffer/ReleaseBuffer even if copying fails.
      * @param samples Borrowed preallocated float32 bytes.
@@ -144,10 +162,10 @@ private class WasapiEndpoint(private val client: Pointer, private val render: Po
     override fun stop() { checkAudioResult("Pause output", comCall(client, 11)) }
     /** Clears the stopped queue. */
     override fun reset() { checkAudioResult("Reset output", comCall(client, 12)) }
-    /** Releases both references once. Session orchestration stops/resets before this call. */
+    /** Releases clock/render/client references once. Session orchestration stops/resets before this call. */
     override fun close() {
         if (closed) return
         closed = true
-        try { releaseCom(render) } finally { releaseCom(client) }
+        try { clock?.close() } finally { try { releaseCom(render) } finally { releaseCom(client) } }
     }
 }

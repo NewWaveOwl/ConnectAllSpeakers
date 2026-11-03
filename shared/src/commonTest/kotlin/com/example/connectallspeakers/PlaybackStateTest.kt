@@ -27,11 +27,12 @@ class PlaybackStateTest {
         var stopped = 0
         var paused = 0
         override fun loadFile(path: String) = Unit
-        override fun play(routes: List<PlaybackRoute>) { played += routes }
+        override fun play(routes: List<PlaybackRoute>, driftReferenceEndpointId: String?) { played += routes }
         override fun pause() { paused++ }
         override fun stop() { stopped++ }
         override fun updateRoutes(routes: List<PlaybackRoute>) { updated += routes }
         override fun testSpeaker(route: PlaybackRoute) { tested += route }
+        override fun calibrate(routes: List<PlaybackRoute>, referenceEndpointId: String) = Unit
     }
     private fun TestScope.owner(outputs: Outputs, playback: Playback, choose: () -> Unit = {}) =
         MainViewModel(outputRepository = outputs, collectionScope = backgroundScope, playbackController = playback, chooseAudioFile = choose)

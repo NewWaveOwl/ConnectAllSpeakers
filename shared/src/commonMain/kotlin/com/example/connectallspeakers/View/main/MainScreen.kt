@@ -49,12 +49,14 @@ fun MainScreen(state: MainUiState, onAction: (MainAction) -> Unit, modifier: Mod
             if (wide) {
                 Row(Modifier.fillMaxWidth().padding(ScreenPadding), horizontalArrangement = Arrangement.spacedBy(ScreenPadding)) {
                     RoomColumn(state, onAction, Modifier.weight(1f), canvasHeight)
-                    SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, state.demoMode, onAction, Modifier.width(InspectorWidth))
+                    SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, state.demoMode, onAction, Modifier.width(InspectorWidth),
+                        state.selectedSetup?.calibrationReference?.id)
                 }
             } else {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     RoomColumn(state, onAction, Modifier.fillMaxWidth(), canvasHeight)
-                    SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, state.demoMode, onAction, Modifier.fillMaxWidth())
+                    SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, state.demoMode, onAction, Modifier.fillMaxWidth(),
+                        state.selectedSetup?.calibrationReference?.id)
                 }
             }
         }
@@ -148,6 +150,7 @@ private fun RoomColumn(state: MainUiState, onAction: (MainAction) -> Unit,
                 }
             }
             PlaybackControls(state.playback, state.demoMode, onAction)
+            CalibrationPanel(state, onAction)
             RoomCanvas(room, state.testingSpeakerId, onAction, Modifier.fillMaxWidth().height(canvasHeight))
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {

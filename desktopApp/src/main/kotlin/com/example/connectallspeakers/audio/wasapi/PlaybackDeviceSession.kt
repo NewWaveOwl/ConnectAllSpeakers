@@ -16,6 +16,10 @@ internal interface PlaybackEndpoint : AutoCloseable {
     val capacityFrames: Int
     /** @return Queued source-rate frames not yet consumed by the engine. */
     fun queuedFrames(): Int
+    /** @return Copied native clock reading, or null if unavailable; never opens another endpoint. */
+    fun clockReading(): NativeClockReading? = null
+    /** Windows-reported maximum stream latency in milliseconds; never acoustic latency. */
+    val streamLatencyMillis: Double? get() = null
     /** @param samples Borrowed interleaved little-endian float32 bytes. @param frames Complete frames to queue. */
     fun submit(samples: ByteArray, frames: Int)
     /** Starts or resumes this explicitly selected endpoint. */
