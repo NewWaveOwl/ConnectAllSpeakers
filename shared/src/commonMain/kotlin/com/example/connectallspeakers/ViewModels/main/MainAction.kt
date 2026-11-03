@@ -16,6 +16,17 @@ sealed interface MainAction {
     data class AssignChannel(val channel: SpeakerChannel) : MainAction
     /** @property percent Requested UI volume, clamped to 0..100. */
     data class SetVolume(val percent: Int) : MainAction
+    /** @property enabled False bypasses EQ, retaining band settings. */
+    data class SetEqEnabled(val enabled: Boolean) : MainAction
+    /** Raw control values are validated by the owner before immutable parameters are created.
+     * @property index Bell band, 0..2.
+     * @property frequencyHz Center frequency in Hz.
+     * @property gainDb Peak gain in dB.
+     * @property q Dimensionless bandwidth control.
+     */
+    data class SetEqBand(val index: Int, val frequencyHz: Double, val gainDb: Double, val q: Double) : MainAction
+    /** Restores the selected card's neutral, bypassed defaults without changing volume/delay. */
+    data object ResetEq : MainAction
     /** @property millis Requested whole-millisecond manual delay; invalid bounds are rejected. */
     data class SetDelay(val millis: Int) : MainAction
     /** @property id Real room card chosen as the zero-delay manual reference. */

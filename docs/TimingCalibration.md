@@ -7,7 +7,8 @@ the user's measurements.** No automatic measurement, microphone access, clock-dr
 correction, persistence or new driver is introduced by the manual-calibration
 slice. The current app also has separate, opt-in
 [experimental drift correction](ClockDriftCorrection.md) for file playback;
-calibration cues/tests still use manual delay only.
+calibration cues/tests exclude drift correction but apply app gain, EQ and manual
+delay. Bypass [EQ](PerSpeakerEq.md) for initial comparison, then recheck with EQ enabled.
 
 ## Controls and reference
 

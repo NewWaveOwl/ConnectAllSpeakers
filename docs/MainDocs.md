@@ -26,7 +26,11 @@ unverified. Opt-in experimental two-output drift correction now uses bounded
 cubic resampling, portable diagnostics and explicit degraded/stop policies.
 It is off by default and validated with fake clocks/PCM only; measured acoustic
 evidence is still needed before final tuning or synchronization claims.
-EQ, production synchronization and surround
+Three per-speaker bell EQ bands now add validated frequency/gain/Q, bypass/reset,
+100 ms bank crossfades, explicit boost headroom and bounded EOF decay. Saved
+profiles use schema 2 with neutral/bypassed migration from schema 1; see
+[PerSpeakerEq](PerSpeakerEq.md). Listening checks remain user-operated.
+Production synchronization and surround
 remain planned. See [FrontendPrototype](FrontendPrototype.md),
 [WindowsOutputDiscovery](WindowsOutputDiscovery.md) and
 [WindowsPlayback](WindowsPlayback.md), [TimingCalibration](TimingCalibration.md)
@@ -76,7 +80,7 @@ ConnectAllSpeakers/                 repository / Gradle root
     main.kt                        Windows desktop composition/window lifecycle
     audio/windows/                 Core Audio COM calls and notification bindings
     audio/wasapi/                  shared-mode rendering and native lifetime
-    audio/dsp/                     bounded decoding, gain/channel, delay, cubic resampling and cues
+    audio/dsp/                     bounded decoding, gain/channel, EQ, delay, cubic resampling and cues
     data/audio/windows/            single-worker discovery repository and cleanup
     data/profiles/                 per-user atomic file storage and filesystem lifetime
   androidApp/src/main/             retained Android launcher
@@ -164,7 +168,7 @@ The user explicitly owns hardware checks; follow [WindowsPlayback](WindowsPlayba
    channel isolation, mono-device mapping and endpoint-removal failure handling.
 3. **Controls:** add bounded volume, mute, delay and EQ, with deterministic DSP
    tests, explicit saved profiles and clipping policy. Profile storage is implemented;
-   EQ and further processing remain separate work.
+   Per-speaker EQ is implemented; listening/quality acceptance and further processing remain separate work.
 4. **Timing:** calibrate acoustic delay, measure clock drift, underruns and
    reconnect behavior over a declared test duration. Fixed delay is not drift correction.
 5. **Expansion:** validate more outputs, then appropriate 2.1/7.1 source mapping.

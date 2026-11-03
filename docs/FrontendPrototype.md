@@ -53,9 +53,11 @@ It implements the [Main setup workspace Figma frame](https://www.figma.com/desig
 components render that snapshot and emit typed callbacks. `App.kt` scopes the owner
 to its lifecycle. `desktopApp` owns the reference-size window and platform entry.
 The shared UI performs no native calls. Windows discovery is injected by the
-desktop launcher alongside experimental playback. Pairing, microphone, EQ,
+desktop launcher alongside experimental playback. Pairing, microphone,
 network and database services remain unimplemented. Desktop injects the shared
 profile contract with asynchronous, versioned atomic file storage.
+The inspector also opens a scrollable [per-speaker EQ dialog](PerSpeakerEq.md)
+with validated bell-band controls, bypass/reset and explicit saved settings.
 
 ## Volume control update
 

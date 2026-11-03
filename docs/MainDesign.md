@@ -7,7 +7,7 @@ Our app processes and routes the audio using Windows APIs. No external mixer app
 receiver phones or custom hardware is required by this design.
 
 **Status:** experimental local WAV/MP3 rendering, engine timing diagnostics,
-manual per-speaker delay and opt-in clock-drift correction implemented. The user reports working playback on their
+manual per-speaker delay, per-speaker EQ and opt-in clock-drift correction implemented. The user reports working playback on their
 Windows PC (November 1, 2026). This update's acoustic calibration measurements,
 broader hardware compatibility and release checks remain unverified.
 
@@ -41,7 +41,9 @@ Choose the slower output as a zero-delay reference and delay the faster one by
 [TimingCalibration](TimingCalibration.md) for rounding, reset behavior, repeatable
 cues and measurement reports. [Explicit setup storage](PersistentSetups.md) retains
 saved rooms, reference, delays and drift opt-in across reopening, without restoring
-an audio file or starting playback. Unsaved edits remain session-only. EQ requires later work.
+an audio file or starting playback. Unsaved edits remain session-only.
+[Per-speaker EQ](PerSpeakerEq.md) now provides three adjustable bell bands,
+bypass/reset, 100 ms crossfades and conservative boost headroom before manual delay.
 
 ## Code ownership
 
@@ -76,9 +78,9 @@ Its provisional parameters have synthetic evidence only; sustained acoustic
 alignment and sound quality still need user measurements before final tuning.
 Speaker count and reliability depend on hardware/drivers.
 
-Local-file stereo, individual gain/channel controls and manual delay are now
+Local-file stereo, individual gain/channel controls, per-speaker EQ and manual delay are now
 implemented. Acoustic validation and production hardening remain before any
-sustained synchronization claim; EQ and additional outputs follow.
+sustained synchronization claim; EQ listening/quality checks and additional outputs follow.
 System-audio capture, 2.1/7.1 and Android
 playback are separate later features.
 

@@ -19,6 +19,9 @@ historical exercises, course policies and unrelated transit rules are not tasks.
   acoustic validation is pending. Automatic acoustic measurement, system audio
   capture, 2.1 and 7.1 are later features. Explicit saved profiles now use a portable
   versioned schema and per-user desktop atomic storage; unsaved edits remain session-only.
+  Per-speaker three-bell EQ is implemented with source-rate validation, bounded
+  crossfades, explicit headroom and schema-one-to-two neutral migration; listening
+  and broader quality acceptance remain user-operated.
 - Use OS audio APIs through our backend. Do not require an external mixer app.
   A binding/library is a separate dependency decision, with license and packaging review.
 - Bluetooth pairing, connection count, a successful API call or a selected output

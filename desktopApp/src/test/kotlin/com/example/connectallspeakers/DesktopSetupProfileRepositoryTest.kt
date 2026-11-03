@@ -4,6 +4,8 @@ import com.example.connectallspeakers.data.profiles.*
 import com.example.connectallspeakers.model.RoomPosition
 import com.example.connectallspeakers.model.SpeakerChannel
 import com.example.connectallspeakers.model.profiles.*
+import com.example.connectallspeakers.model.audio.EqBand
+import com.example.connectallspeakers.model.audio.SpeakerEq
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -77,7 +79,7 @@ class DesktopSetupProfileRepositoryTest {
         Files.createDirectories(root())
         val path = root().resolve("setups.acp")
         val valid = SetupProfileCodec.encode(fixture())
-        val badFiles = listOf(valid.copyOf(valid.size / 2), valid.decodeToString().replace("PROFILES\t1", "PROFILES\t99").encodeToByteArray(),
+        val badFiles = listOf(valid.copyOf(valid.size / 2), valid.decodeToString().replace("PROFILES\t2", "PROFILES\t99").encodeToByteArray(),
             ByteArray(MAX_PROFILE_BYTES + 1), byteArrayOf(0xff.toByte(), 0xfe.toByte()),
             valid.decodeToString().replace("volume=24", "volume=999").encodeToByteArray())
         for (bad in badFiles) {
@@ -147,5 +149,27 @@ class DesktopSetupProfileRepositoryTest {
             save.await(); close.await()
             assertEquals(fixture(), repository().load())
         } finally { release.countDown() }
+    }
+
+    @Test fun oldProfileLoadsWithoutRewritingAndFailedEqUpgradePreservesOriginalBytes() = runBlocking {
+        Files.createDirectories(root())
+        val path = root().resolve("setups.acp")
+        val old = ("ALLCONNECT-PROFILES\t1\nW\tmode=Real\nB\tmode=Real\tselected=\trooms=0\n" +
+            "B\tmode=Demo\tselected=\trooms=0\nEND\n").encodeToByteArray()
+        Files.write(path, old)
+        val failure = DesktopSetupProfileRepository({ root() }) { throw IOException("Injected upgrade write failure") }
+        assertEquals(SetupProfile(), failure.load())
+        assertContentEquals(old, Files.readAllBytes(path))
+        val base = fixture()
+        val room = base.real.rooms.single()
+        val upgraded = base.copy(real = base.real.copy(rooms = listOf(room.copy(speakers = room.speakers.map {
+            it.copy(eq = SpeakerEq(true, mid = EqBand(1000.0, -6.0)))
+        }))))
+        assertFailsWith<IOException> { failure.save(upgraded) }
+        assertContentEquals(old, Files.readAllBytes(path))
+        failure.close()
+        val store = repository(); store.load(); store.save(upgraded); store.close()
+        assertTrue(Files.readString(path).startsWith("ALLCONNECT-PROFILES\t2\n"))
+        assertEquals(upgraded, repository().load())
     }
 }

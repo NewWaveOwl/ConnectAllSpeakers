@@ -14,7 +14,7 @@ import com.example.connectallspeakers.model.profiles.SpeakerProfile
 fun RoomSetup.toProfile(previous: RoomProfile? = null): RoomProfile = RoomProfile(
     id, name, speakers.map { speaker -> SpeakerProfile(speaker.id, speaker.name, speaker.channel, speaker.volume,
         speaker.position, speaker.homePosition, speaker.output?.endpointId, speaker.output?.displayName,
-        speaker.delayMillis, previous?.speakers?.find { it.id == speaker.id }?.extensions?.toMap().orEmpty()) },
+        speaker.delayMillis, previous?.speakers?.find { it.id == speaker.id }?.extensions?.toMap().orEmpty(), speaker.eq) },
     selectedSpeakerId, snapToGrid, zoom, calibrationReferenceSpeakerId, driftCorrectionEnabled,
     previous?.extensions?.toMap().orEmpty(),
 )
@@ -25,7 +25,7 @@ fun RoomSetup.toProfile(previous: RoomProfile? = null): RoomProfile = RoomProfil
 fun RoomProfile.toRoom(): RoomSetup = RoomSetup(id, name, speakers.map { speaker ->
     RoomSpeaker(speaker.id, speaker.name, speaker.channel, speaker.volume, speaker.position, speaker.homePosition,
         speaker.endpointId?.let { AudioOutputDevice(it, speaker.endpointName.orEmpty(), OutputAvailability.Unknown) },
-        speaker.delayMillis)
+        speaker.delayMillis, speaker.eq)
 }, selectedSpeakerId, snapToGrid, zoom, referenceSpeakerId, driftCorrectionEnabled)
 
 /** Compares user edits without counting fresh Windows metadata as an unsaved change.

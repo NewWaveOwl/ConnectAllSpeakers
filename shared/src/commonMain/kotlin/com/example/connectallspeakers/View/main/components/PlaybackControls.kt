@@ -52,6 +52,12 @@ fun PlaybackControls(playback: PlaybackSnapshot, demoMode: Boolean, onAction: (M
         Text(if (demoMode) "Demo speakers cannot play audio. Switch Demo mode off to use Windows outputs."
             else playback.message.orEmpty(), color = if (playback.phase == PlaybackPhase.Error) MaterialTheme.colorScheme.error else C.Teal,
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        playback.routeUpdateError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+        val limitedFrames = playback.outputTimings.sumOf { it.eq?.limitedFrames ?: 0L }
+        if (limitedFrames > 0) Text("Recorded EQ safety clamp: $limitedFrames frames. Lower app volume or reduce boosts/cuts.",
+            color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         Text("1–2 outputs · Manual delay applies on restart · Experimental drift option in Manual calibration · Acoustic alignment is unverified",
             color = C.Muted, style = MaterialTheme.typography.bodySmall)
     }
