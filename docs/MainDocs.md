@@ -10,7 +10,10 @@ separate capability investigation. Linux is outside the current product scope.
 Implemented here: an interactive shared Compose/Material 3 frontend prototype
 matching AllConnect's “02 / Main setup workspace” (Figma node `3:3901`). Rooms,
 sample speakers, inspector edits, bounded dragging, snap/zoom/reset, setup dialogs
-and session-only save snapshots work locally. Windows now supplies real active
+and independent room edits work locally. Explicit Save now durably stores room
+profiles per Windows user and restores them silently; unsaved edits remain
+session-only. See [PersistentSetups](PersistentSetups.md) for atomic writes,
+schema compatibility and recovery. Windows now supplies real active
 playback endpoints through a Core Audio repository with queued device-change
 notifications. Room settings stay separate from endpoint metadata. Samples are
 isolated behind explicit Demo mode. Experimental local WAV/MP3 playback now routes
@@ -23,7 +26,7 @@ unverified. Opt-in experimental two-output drift correction now uses bounded
 cubic resampling, portable diagnostics and explicit degraded/stop policies.
 It is off by default and validated with fake clocks/PCM only; measured acoustic
 evidence is still needed before final tuning or synchronization claims.
-Persistence, EQ, production synchronization and surround
+EQ, production synchronization and surround
 remain planned. See [FrontendPrototype](FrontendPrototype.md),
 [WindowsOutputDiscovery](WindowsOutputDiscovery.md) and
 [WindowsPlayback](WindowsPlayback.md), [TimingCalibration](TimingCalibration.md)
@@ -57,6 +60,8 @@ ConnectAllSpeakers/                 repository / Gradle root
       View/main/components/        canvas, inspector, controls and dialogs
       ViewModels/main/             MainViewModel session owner and typed actions
       model/                       immutable sample speakers and room setups
+      model/profiles/              versioned immutable saved settings and validation
+      data/profiles/               portable storage contract, codec and edit mapping
       state/                       immutable session snapshot and modal state
       layout/MainLayout.kt         shared scaffold/inset ownership
       ui/theme/Theme.kt            Figma palette and locally bundled Lato
@@ -73,6 +78,7 @@ ConnectAllSpeakers/                 repository / Gradle root
     audio/wasapi/                  shared-mode rendering and native lifetime
     audio/dsp/                     bounded decoding, gain/channel, delay, cubic resampling and cues
     data/audio/windows/            single-worker discovery repository and cleanup
+    data/profiles/                 per-user atomic file storage and filesystem lifetime
   androidApp/src/main/             retained Android launcher
   webApp/src/webMain/              retained web launcher; not an active audio target
   gradle/libs.versions.toml        pinned dependencies and Android SDK levels
@@ -114,7 +120,10 @@ This flow is implemented for discovery and playback: `MainViewModel` observes
 implementations. App.kt assembles shared rendering and the scoped ViewModel.
 main.kt supplies the native file chooser and awaits playback cleanup before
 discovery cleanup on normal exit. Common launchers without Windows services
-expose Unsupported; they do not silently substitute sample devices.
+expose Unsupported; they do not silently substitute sample devices. Desktop also
+injects durable setup storage; shared startup restores only explicitly saved
+configuration, reconciles fresh discovery and never requests audio playback.
+Normal window shutdown awaits storage operations as well as native cleanup.
 For stereo, the engine opens two independent active outputs and maps source left
 and right deliberately. Common code cannot import WASAPI, COM or Java Sound.
 
@@ -154,7 +163,8 @@ The user explicitly owns hardware checks; follow [WindowsPlayback](WindowsPlayba
 2. **Stereo:** play an in-app audio file; assign left to A and right to B. Verify
    channel isolation, mono-device mapping and endpoint-removal failure handling.
 3. **Controls:** add bounded volume, mute, delay and EQ, with deterministic DSP
-   tests, saved profiles only when persistence is implemented, and clipping policy.
+   tests, explicit saved profiles and clipping policy. Profile storage is implemented;
+   EQ and further processing remain separate work.
 4. **Timing:** calibrate acoustic delay, measure clock drift, underruns and
    reconnect behavior over a declared test duration. Fixed delay is not drift correction.
 5. **Expansion:** validate more outputs, then appropriate 2.1/7.1 source mapping.

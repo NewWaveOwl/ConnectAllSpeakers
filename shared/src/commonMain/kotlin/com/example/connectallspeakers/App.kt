@@ -10,17 +10,20 @@ import com.example.connectallspeakers.layout.MainLayout
 import com.example.connectallspeakers.ui.theme.ConnectAllSpeakersTheme
 import com.example.connectallspeakers.data.audio.AudioOutputRepository
 import com.example.connectallspeakers.data.audio.AudioPlaybackController
+import com.example.connectallspeakers.data.profiles.SetupProfileRepository
 
 /** Assembles shared rendering; the platform owner closes discovery independently of screen disposal.
  * @param outputRepository Native discovery supplied by Windows, or null on unsupported platforms.
  * @param playbackController Application-owned native playback, or null on other platforms.
  * @param chooseAudioFile Platform file chooser, invoked only by an explicit user action.
+ * @param profileRepository Application-owned durable setup storage, absent on other launchers.
  */
 @Composable
 fun App(outputRepository: AudioOutputRepository? = null, playbackController: AudioPlaybackController? = null,
+    profileRepository: SetupProfileRepository? = null,
     chooseAudioFile: () -> Unit = {}) {
     val owner = viewModel { MainViewModel(outputRepository = outputRepository,
-        playbackController = playbackController, chooseAudioFile = chooseAudioFile) }
+        playbackController = playbackController, chooseAudioFile = chooseAudioFile, profileRepository = profileRepository) }
     val state by owner.state.collectAsStateWithLifecycle()
     ConnectAllSpeakersTheme {
         MainLayout {

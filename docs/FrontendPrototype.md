@@ -1,7 +1,7 @@
 # AllConnect frontend prototype
 
 The original sample-only screen is retained in explicit **Demo mode**. The current
-Windows launcher starts with empty real-device rooms and uses
+Windows launcher restores explicitly saved rooms (or starts with empty real-device rooms on first use) and uses
 [Core Audio output discovery](WindowsOutputDiscovery.md); it never silently falls
 back to samples. The current launcher also injects experimental
 [local WAV/MP3 playback](WindowsPlayback.md); its hardware checks are explicitly
@@ -35,8 +35,11 @@ It implements the [Main setup workspace Figma frame](https://www.figma.com/desig
   names are rejected. Deleting the last room shows a recoverable empty state.
 - Add speaker offers three explicitly identified sample types. Every pick creates
   a distinct session instance; repeated types cannot create duplicate IDs.
-- Save setup captures an independent in-memory snapshot and confirms “saved for
-  this session.” It does not write files or restore data after closing the app.
+- Save setup now writes the selected room to per-user desktop storage and confirms
+  success only after completion. Unsaved edits remain session-only; restored
+  setups never start audio. See [PersistentSetups](PersistentSetups.md) for saved
+  selection, demo isolation, deletion and recovery. Unsupported launchers retain
+  clearly labeled session-only snapshots.
 - Demo Test speaker explains that sample devices cannot play audio. For a real
   output it requests an explicit ten-second tone. Its highlight follows the test
   session and clears on completion, error or Stop. Actual native playback remains
@@ -51,7 +54,8 @@ components render that snapshot and emit typed callbacks. `App.kt` scopes the ow
 to its lifecycle. `desktopApp` owns the reference-size window and platform entry.
 The shared UI performs no native calls. Windows discovery is injected by the
 desktop launcher alongside experimental playback. Pairing, microphone, EQ,
-network, database and disk persistence services remain unimplemented.
+network and database services remain unimplemented. Desktop injects the shared
+profile contract with asynchronous, versioned atomic file storage.
 
 ## Volume control update
 

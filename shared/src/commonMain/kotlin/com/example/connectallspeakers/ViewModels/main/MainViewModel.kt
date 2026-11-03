@@ -30,6 +30,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.math.round
+import com.example.connectallspeakers.data.profiles.SetupProfileRepository
+import com.example.connectallspeakers.data.profiles.toProfile
+import com.example.connectallspeakers.data.profiles.toRoom
+import com.example.connectallspeakers.model.profiles.ProfileBank
+import com.example.connectallspeakers.model.profiles.ProfileMode
+import com.example.connectallspeakers.model.profiles.SetupProfile
+import com.example.connectallspeakers.state.ProfileStorageStatus
+import kotlinx.coroutines.CancellationException
 
 /** Owns session edits and routes explicit playback requests to the platform controller.
  * @param initialState Optional deterministic session used by behavior tests.
@@ -37,15 +45,18 @@ import kotlin.math.round
  * @param collectionScope Optional test scope; production defaults to this ViewModel's lifetime.
  * @param playbackController Application-owned audio engine, absent on unsupported launchers.
  * @param chooseAudioFile Platform file-picker callback; cancellation leaves the source unchanged.
+ * @param profileRepository Durable explicit-save storage, or null for session-only launchers/tests.
  */
 class MainViewModel(initialState: MainUiState = MainUiState(),
     private val outputRepository: AudioOutputRepository? = null,
     collectionScope: CoroutineScope? = null,
     private val playbackController: AudioPlaybackController? = null,
     private val chooseAudioFile: () -> Unit = {},
+    private val profileRepository: SetupProfileRepository? = null,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(initialState.copy(outputs = outputRepository?.outputs?.value ?: initialState.outputs,
-        playback = playbackController?.playback?.value ?: initialState.playback))
+        playback = playbackController?.playback?.value ?: initialState.playback,
+        profileStorage = if (profileRepository == null) ProfileStorageStatus.SessionOnly else ProfileStorageStatus.Loading))
     /** Read-only session state; immutable copies are emitted for every edit. */
     val state: StateFlow<MainUiState> = mutableState.asStateFlow()
     private var nextIdentity = 1L
@@ -57,8 +68,11 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
     private var timingExpiry: Job? = null
     private var receivedTimingSequence: Long? = null
     private var expiredTimingSequence: Long? = null
+    private var durableProfile = SetupProfile()
+    private val initialWorkspace = initialState
 
     init {
+        if (profileRepository != null) loadProfiles()
         if (playbackController != null) ownerScope.launch {
             playbackController.playback.collect { playback ->
                 if (playback.outputTimings.none { it.isLive }) {
@@ -107,6 +121,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
      * @param action Intent from the view. Unknown IDs and non-finite moves are ignored.
      */
     fun onAction(action: MainAction) {
+        if (state.value.profileStorage == ProfileStorageStatus.Loading) return
         val before = state.value
         when (action) {
             is MainAction.SelectSetup -> if (state.value.setups.any { it.id == action.id }) {
@@ -149,10 +164,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             MainAction.ResetPositions -> editRoom { room -> room.copy(
                 speakers = room.speakers.map { it.copy(position = it.homePosition) }, zoom = 1f,
             ) }
-            MainAction.SaveSetup -> state.value.selectedSetup?.let { room -> mutableState.update {
-                it.copy(savedSetups = it.savedSetups + (room.id to room.copy(speakers = room.speakers.toList())),
-                    feedback = "${room.name} saved for this session.")
-            } }
+            MainAction.SaveSetup -> saveSetup()
             MainAction.TestSpeaker -> testSpeaker()
             MainAction.ChooseAudioFile -> if (!state.value.demoMode && playbackController != null) chooseAudioFile()
             MainAction.Play -> play()
@@ -220,10 +232,12 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
     /** Validates setup names or deletes the active room, including the last remaining room. */
     private fun confirmDialog() {
         val current = state.value
+        if (current.dialog == MainDialog.ReloadSetups) {
+            if (!current.savingProfiles) { stopPlayback(); loadProfiles() }
+            return
+        }
         if (current.dialog == MainDialog.DeleteSetup) {
-            val remaining = current.setups.filterNot { it.id == current.selectedSetupId }
-            mutableState.update { it.copy(setups = remaining, selectedSetupId = remaining.firstOrNull()?.id,
-                savedSetups = it.savedSetups - current.selectedSetupId.orEmpty(), dialog = null) }
+            deleteSetup()
             return
         }
         if (current.dialog != MainDialog.AddSetup && current.dialog != MainDialog.RenameSetup) return
@@ -273,7 +287,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         } else {
             val id = uniqueId("output")
             val position = RoomPosition(.15f + room.speakers.size % 5 * .15f, .25f)
-            editRoom { it.copy(speakers = it.speakers + RoomSpeaker(id, output.displayName,
+            editRoom { it.copy(speakers = it.speakers + RoomSpeaker(id, output.displayName.take(80),
                 SpeakerChannel.Mono, 80, position, output = output), selectedSpeakerId = id) }
         }
         mutableState.update { it.copy(dialog = null) }
@@ -321,6 +335,122 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         var candidate: String
         do { candidate = "$prefix-${nextIdentity++}" } while (candidate in used)
         return candidate
+    }
+
+    /** Restores saved banks without dispatching any play/test/load-file action. Failed loads preserve current edits. */
+    private fun loadProfiles() {
+        val repository = profileRepository ?: return
+        mutableState.update { it.copy(profileStorage = ProfileStorageStatus.Loading, dialog = null) }
+        ownerScope.launch {
+            try {
+                val loaded = repository.load()
+                loaded?.validate()
+                durableProfile = loaded ?: SetupProfile()
+                val demo = loaded?.mode == ProfileMode.Demo || (loaded == null && initialWorkspace.demoMode)
+                val realRooms = loaded?.real?.rooms?.map { it.toRoom() } ?: if (initialWorkspace.demoMode) emptySetups() else initialWorkspace.setups
+                val demoRooms = loaded?.demo?.rooms?.map { it.toRoom() } ?: if (initialWorkspace.demoMode) initialWorkspace.setups else sampleSetups()
+                val realSelection = if (loaded != null) loaded.real.selectedRoomId else if (initialWorkspace.demoMode) "living" else initialWorkspace.selectedSetupId
+                val demoSelection = if (loaded != null) loaded.demo.selectedRoomId else if (initialWorkspace.demoMode) initialWorkspace.selectedSetupId else "living"
+                inactiveSetups = if (demo) reconcileRooms(realRooms, state.value.outputs) else demoRooms
+                inactiveSelection = if (demo) realSelection else demoSelection
+                inactiveSaves = (if (demo) durableProfile.real else durableProfile.demo).rooms.associate { it.id to it.toRoom() }
+                mutableState.update { current -> current.copy(
+                    setups = if (demo) demoRooms else reconcileRooms(realRooms, current.outputs),
+                    selectedSetupId = if (demo) demoSelection else realSelection, demoMode = demo,
+                    savedSetups = (if (demo) durableProfile.demo else durableProfile.real).rooms.associate { it.id to it.toRoom() },
+                    profileStorage = ProfileStorageStatus.Ready, profileError = null, testingSpeakerId = null,
+                    feedback = if (loaded == null) null else "Saved setups restored.") }
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (error: Exception) {
+                mutableState.update { it.copy(profileStorage = ProfileStorageStatus.LoadFailed,
+                    profileError = "Could not load saved setups. ${error.message.orEmpty().take(350)}", feedback = null) }
+            }
+        }
+    }
+
+    /** Captures one room now; later edits and selection/mode switches cannot alter the pending write. */
+    private fun saveSetup() {
+        val current = state.value
+        val room = current.selectedSetup ?: return
+        if (current.savingProfiles) return
+        if (profileRepository == null) {
+            mutableState.update { it.copy(savedSetups = it.savedSetups + (room.id to room.copy(speakers = room.speakers.toList())),
+                feedback = "${room.name} saved for this session; durable storage is unavailable on this platform.") }
+            return
+        }
+        if (current.profileStorage != ProfileStorageStatus.Ready) return
+        val old = if (current.demoMode) durableProfile.demo else durableProfile.real
+        val captured = room.toProfile(old.rooms.find { it.id == room.id })
+        val snapshots = old.rooms.associateBy { it.id } + (room.id to captured)
+        val bank = ProfileBank(current.setups.mapNotNull { snapshots[it.id] }, room.id)
+        val candidate = if (current.demoMode) durableProfile.copy(demo = bank, mode = ProfileMode.Demo)
+            else durableProfile.copy(real = bank, mode = ProfileMode.Real)
+        writeProfile(candidate, "${room.name} saved on this PC.")
+    }
+
+    /** Explicit deletion persists before removing a saved room; failed writes leave its card/settings intact. */
+    private fun deleteSetup() {
+        val current = state.value
+        val id = current.selectedSetupId ?: return
+        if (current.savingProfiles) return
+        val mode = current.demoMode
+        val old = if (mode) durableProfile.demo else durableProfile.real
+        if (profileRepository != null && old.rooms.any { it.id == id }) {
+            val rooms = old.rooms.filterNot { it.id == id }
+            val bank = ProfileBank(rooms, rooms.firstOrNull()?.id)
+            val candidate = if (mode) durableProfile.copy(demo = bank, mode = ProfileMode.Demo)
+                else durableProfile.copy(real = bank, mode = ProfileMode.Real)
+            mutableState.update { it.copy(dialog = null) }
+            writeProfile(candidate, "${current.selectedSetup?.name.orEmpty()} deleted from saved setups.") { removeRoom(id, mode, stopSelectedPlayback = true) }
+        } else removeRoom(id, mode)
+    }
+
+    /** Removes the captured identity in its own bank, even if the user switched modes during a write.
+     * @param id Room to remove, never inferred from the current selection on completion.
+     * @param demo Bank owning the captured room.
+     * @param stopSelectedPlayback True for asynchronous completion; synchronous actions use onAction's route-change check.
+     */
+    private fun removeRoom(id: String, demo: Boolean, stopSelectedPlayback: Boolean = false) {
+        if (state.value.demoMode == demo) {
+            if (stopSelectedPlayback && state.value.selectedSetupId == id) stopPlayback()
+            mutableState.update { current ->
+                val remaining = current.setups.filterNot { it.id == id }
+                current.copy(setups = remaining,
+                    selectedSetupId = if (current.selectedSetupId == id) remaining.firstOrNull()?.id else current.selectedSetupId,
+                    savedSetups = current.savedSetups - id, dialog = null)
+            }
+        } else {
+            inactiveSetups = inactiveSetups.filterNot { it.id == id }
+            if (inactiveSelection == id) inactiveSelection = inactiveSetups.firstOrNull()?.id
+            inactiveSaves = inactiveSaves - id
+        }
+    }
+
+    /** Serializes explicit write actions, publishing durable snapshots only after storage completes.
+     * @param candidate Immutable settings captured by the initiating action.
+     * @param success User-readable feedback after successful durable storage.
+     * @param afterSave Optional deletion completion, applied to the captured identity only.
+     */
+    private fun writeProfile(candidate: SetupProfile, success: String, afterSave: () -> Unit = {}) {
+        mutableState.update { it.copy(savingProfiles = true) }
+        ownerScope.launch {
+            try {
+                candidate.validate()
+                profileRepository!!.save(candidate)
+                durableProfile = candidate
+                inactiveSaves = (if (state.value.demoMode) candidate.real else candidate.demo).rooms.associate { it.id to it.toRoom() }
+                mutableState.update { current -> current.copy(
+                    savedSetups = (if (current.demoMode) candidate.demo else candidate.real).rooms.associate { it.id to it.toRoom() },
+                    savingProfiles = false, profileError = null, feedback = success) }
+                afterSave()
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (error: Exception) {
+                mutableState.update { it.copy(savingProfiles = false,
+                    profileError = "Setups were not saved. ${error.message.orEmpty().take(350)}", feedback = null) }
+            } finally {
+                mutableState.update { it.copy(savingProfiles = false) }
+            }
+        }
     }
 
     /** @param snapshot Session to inspect. @return Real routes, preserving names/positions separately. */

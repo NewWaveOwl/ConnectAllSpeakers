@@ -61,7 +61,8 @@ The outputs have independent clocks and are started sequentially. Optional
 within fixed limits, off by default. The current app does **not** provide
 guaranteed synchronized stereo or measured acoustic latency,
 gapless playback, seeking/looping, system-audio capture, a virtual driver, pairing,
-persistence or an Android playback service. Audible simultaneous output and
+or an Android playback service. [Explicit profile storage](PersistentSetups.md)
+now restores saved settings only, never an audio file or autoplay. Audible simultaneous output and
 compatibility remain unverified until the user performs the checks below.
 
 ## Ownership and cleanup

@@ -24,7 +24,9 @@ Per-output gain/channel and manual delay remain independent. Calibration cues
 and Test speaker deliberately use manual delay only, even when the room's drift
 option is enabled. One-output correction is rejected with feedback; disable the
 option to use ordinary one-output playback. Rooms and Save setup snapshots retain
-their own option/reference for this session only. Closing the app discards them.
+their own option/reference. [Explicit desktop saves](PersistentSetups.md) retain
+those preferences across reopening; unsaved edits are discarded. No drift
+measurements, correction ratios, audio files or automatic playback intent are restored.
 
 ## Measurement and controller
 
@@ -252,7 +254,8 @@ for external measurement. File generation never opens an audio device.
 8. Disconnect either output while playing and paused. Expect both to stop,
    live estimates to become Unknown, the card/settings to remain, and no
    automatic playback after reconnect. Explicit Play opens fresh processing.
-   Close/reopen to check shutdown; room/calibration/option remain session-only.
+   Save setup and close/reopen to check shutdown and saved room/calibration/option
+   restoration. No audio file, live timing or automatic playback should return.
 
 ### Sustained-playback report
 

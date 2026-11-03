@@ -21,7 +21,7 @@ enum class SpeakerChannel(val label: String, val caption: String) {
 data class RoomPosition(val x: Float, val y: Float)
 
 /** Room card with user settings separate from optional Windows metadata.
- * @property id Stable, session-unique room instance identity.
+ * @property id Stable card identity retained by explicit setup saves.
  * @property name Editable display name.
  * @property channel Explicit app channel assignment; moving a card never changes it.
  * @property volume Linear app playback gain in percent, from 0 to 100; demo samples stay silent.
@@ -47,7 +47,7 @@ data class RoomSpeaker(
     val availability: OutputAvailability get() = output?.availability ?: OutputAvailability.Active
 }
 
-/** Immutable room edits retained independently for this application session.
+/** Immutable room edits; explicit saves retain settings independently of later session changes.
  * @property id Stable setup identity.
  * @property name User-visible room name.
  * @property speakers Real or explicit sample instances owned by this setup.
