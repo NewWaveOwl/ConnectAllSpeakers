@@ -24,8 +24,10 @@ data class PlaybackSource(val name: String, val durationMillis: Long, val sample
  * @property channel Source channel deliberately selected by the user.
  * @property volumePercent Linear amplitude gain in percent, 0..100; never Windows master volume.
  * @property delayMillis Bounded nonnegative manual delay, fixed until the session restarts.
+ * @property eq Validated per-output EQ; source-rate validation happens before preparation/updates.
  */
-data class PlaybackRoute(val endpointId: String, val channel: SpeakerChannel, val volumePercent: Int, val delayMillis: Int = 0) {
+data class PlaybackRoute(val endpointId: String, val channel: SpeakerChannel, val volumePercent: Int, val delayMillis: Int = 0,
+    val eq: SpeakerEq = SpeakerEq()) {
     init {
         require(endpointId.isNotBlank()) { "Choose an explicit playback output." }
         require(volumePercent in 0..100) { "Volume must be between 0 and 100%." }
@@ -44,6 +46,7 @@ data class PlaybackRoute(val endpointId: String, val channel: SpeakerChannel, va
  * @property outputTimings Latest per-output engine diagnostics; no acoustic latency is inferred.
  * @property timingSequence Increases for every measurement packet, including unchanged paused values.
  * @property isCalibration Whether a generated manual-calibration signal is playing.
+ * @property routeUpdateError Rejected live-setting update; previous safe routes remain active.
  */
 data class PlaybackSnapshot(
     val phase: PlaybackPhase = PlaybackPhase.Unsupported,
@@ -55,4 +58,5 @@ data class PlaybackSnapshot(
     val outputTimings: List<OutputTiming> = emptyList(),
     val timingSequence: Long = 0,
     val isCalibration: Boolean = false,
+    val routeUpdateError: String? = null,
 )

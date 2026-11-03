@@ -35,15 +35,18 @@ reroute an active session.
 - Mono averages `(left + right) / 2` and copies that average to every physical
   channel. A mono file supplies the same sample to Left, Right and Mono.
 - App volume is linear gain from 0–100%, applied before queuing. It does not
-  change Windows master volume. Samples are bounded to [-1, 1]; there is no boost,
-  limiter or EQ. Manual delay adds a bounded 0–500 ms per-output FIFO after gain
-  and channel mapping. Already buffered audio may take the configured delay,
+  change Windows master volume. [Per-speaker EQ](PerSpeakerEq.md) follows gain and
+  channel mapping, with three bell bands, explicit boost headroom and a counted
+  safety clamp to [-1, 1]; there is no look-ahead limiter. Manual delay adds a bounded
+  0–500 ms per-output FIFO after EQ. Already buffered audio may take the configured delay,
   native queue and device/Bluetooth latency to reflect a gain/channel edit.
   See [TimingCalibration](TimingCalibration.md) for reference selection,
   frame rounding, resets, engine diagnostics and the acoustic measurement procedure.
 - Test speaker explicitly stops file playback and requests a ten-second 440 Hz
   tone at -20 dBFS peak before app gain, with 10 ms ramps, on that card only.
   The longer continuous signal gives slower outputs time to become audible.
+  EQ and manual delay apply; a session that used non-neutral EQ has up to 500 ms
+  of additional zero-input decay before manual-delay/native queues finish draining.
   Stop ends it early, and the card highlight follows the active test session.
   The previously loaded file remains available; the test does not resume it.
 - Pause retains each native queue; Resume continues it. Stop releases all streams

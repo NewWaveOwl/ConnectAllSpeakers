@@ -64,7 +64,7 @@ class SetupProfileCodecTest {
     @Test fun malformedTruncatedOversizedAndUnsupportedFilesFailClosed() {
         val valid = SetupProfileCodec.encode(profileFixture()).decodeToString()
         val malformed = listOf("", valid.dropLast(1), valid.substringBefore("END"),
-            valid.replace("ALLCONNECT-PROFILES\t1", "ALLCONNECT-PROFILES\t2"),
+            valid.replace("ALLCONNECT-PROFILES\t2", "ALLCONNECT-PROFILES\t99"),
             valid.replace("volume=37", "volume=nan"), valid.replace("x=0.7", "x=NaN"),
             valid.replace("delayMs=123", "delayMs=501"), valid.replace("snap=false", "snap=perhaps"),
             valid.replace("cards=2", "cards=3"), valid.replace("rooms=1", "rooms=999999999999"),

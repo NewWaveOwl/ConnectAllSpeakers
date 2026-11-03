@@ -10,7 +10,7 @@ import com.example.connectallspeakers.model.audio.PlaybackSnapshot
 import com.example.connectallspeakers.data.profiles.hasUnsavedChanges
 
 /** Lightweight modal destinations, confined to this screen. */
-enum class MainDialog { AddSetup, RenameSetup, DeleteSetup, AddSpeaker, Settings, ReloadSetups }
+enum class MainDialog { AddSetup, RenameSetup, DeleteSetup, AddSpeaker, Settings, ReloadSetups, SpeakerEq }
 
 /** Storage readiness, independent of native device discovery and playback. */
 enum class ProfileStorageStatus { SessionOnly, Loading, Ready, LoadFailed }

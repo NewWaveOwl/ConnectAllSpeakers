@@ -25,6 +25,10 @@ fun SetupDialogs(state: MainUiState, onAction: (MainAction) -> Unit) {
             SettingsDialog { onAction(MainAction.DismissDialog) }
             return
         }
+        MainDialog.SpeakerEq -> {
+            SpeakerEqDialog(state, onAction)
+            return
+        }
         MainDialog.ReloadSetups -> "Reload saved setups?"
     }
     AlertDialog(onDismissRequest = { onAction(MainAction.DismissDialog) }, title = { Text(title) },

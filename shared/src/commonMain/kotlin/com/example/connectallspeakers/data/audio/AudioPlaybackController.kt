@@ -27,7 +27,8 @@ interface AudioPlaybackController {
     /** Stops and releases all outputs; the loaded file remains available for replay from zero. */
     fun stop()
 
-    /** Applies channel/gain edits to subsequent buffers. Delay edits stop playback for an explicit restart.
+    /** Applies channel/gain edits and smoothed per-output EQ to subsequent buffers.
+     * Unsupported EQ updates retain safe routes and report routeUpdateError. Delay edits stop for an explicit restart.
      * @param routes Current room routes, with no implicit endpoint replacement.
      */
     fun updateRoutes(routes: List<PlaybackRoute>)

@@ -4,22 +4,24 @@ import com.example.connectallspeakers.model.SpeakerChannel
 import com.example.connectallspeakers.model.audio.MAX_DRIFT_CORRECTION_PPM
 import com.example.connectallspeakers.model.audio.PlaybackRoute
 
-/** Fractional source cursor with four-point cubic interpolation, followed by the existing delay FIFO.
+/** Fractional source cursor with four-point cubic interpolation, per-output EQ, then the delay FIFO.
  * Uses the decoded file's bounded random access; no input queue grows with playback duration.
  * @param source Borrowed immutable decoded samples.
  * @param channels Physical output channels, one or two.
  * @param capacityFrames Maximum output block/native queue size.
  * @param delayFrames Prepared manual delay in output-format frames, unchanged by correction.
+ * @param eq Owned per-output EQ before manual delay; defaults to neutral for existing offline callers.
  */
 internal class AdaptivePcmRenderer(private val source: DecodedAudio, private val channels: Int,
-    private val capacityFrames: Int, private val delayFrames: Int) {
+    private val capacityFrames: Int, private val delayFrames: Int,
+    private val eq: OutputEqProcessor = OutputEqProcessor(source.sampleRate)) {
     private val history = SourceFrameHistory(capacityFrames + delayFrames + source.sampleRate * 2 + 2)
     private val delay = PcmDelayLine(delayFrames, channels, capacityFrames)
     private var sourceFrame = 0.0
     private var tailFrames = delayFrames
     private var correctionPpm = 0.0
-    /** True after source interpolation and the complete manual-delay tail have been submitted. */
-    val finished: Boolean get() = sourceFrame >= source.frames && tailFrames == 0
+    /** True after source interpolation, bounded EQ decay and the complete manual-delay tail have been submitted. */
+    val finished: Boolean get() = sourceFrame >= source.frames && eq.remainingTailFrames == 0 && tailFrames == 0
     /** True once source input is exhausted; the native queue/delay can still be draining. */
     val sourceEnded: Boolean get() = sourceFrame >= source.frames
 
@@ -31,19 +33,21 @@ internal class AdaptivePcmRenderer(private val source: DecodedAudio, private val
         correctionPpm = ppm
     }
 
-    /** Renders up to the available native capacity and drains the manual delay exactly once.
+    /** Renders up to native capacity and drains bounded EQ decay then manual delay exactly once.
      * @param bytes Borrowed reusable float32 little-endian storage.
      * @param maximumFrames Available native frames, bounded by prepared capacity.
-     * @param route Latest deliberate channel/gain; delay is fixed at preparation.
-     * @return Complete output frames written, including trailing delay silence.
+     * @param route Latest channel/gain/EQ; delay is fixed at preparation. EQ updates freeze once EOF drain starts.
+     * @return Complete output frames written, including EQ decay and trailing delay silence.
      */
     fun render(bytes: ByteArray, maximumFrames: Int, route: PlaybackRoute): Int {
         require(maximumFrames in 0..capacityFrames && bytes.size >= maximumFrames * channels * 4)
+        if (!sourceEnded) eq.request(route.eq)
         var frames = 0
         var offset = 0
         val gain = route.volumePercent / 100f
         val step = 1.0 + correctionPpm / 1_000_000.0
         while (frames < maximumFrames && !finished) {
+            val endOfSource = sourceEnded
             val sample = if (!sourceEnded) {
                 val index = sourceFrame.toInt()
                 val fraction = sourceFrame - index
@@ -56,9 +60,9 @@ internal class AdaptivePcmRenderer(private val source: DecodedAudio, private val
                 }
                 sourceFrame = minOf(source.frames.toDouble(), sourceFrame + step)
                 if (input.isFinite()) (input * gain).coerceIn(-1f, 1f) else 0f
-            } else { tailFrames--; 0f }
+            } else { if (eq.remainingTailFrames == 0) tailFrames--; 0f }
             history.append(sourceFrame)
-            val bits = sample.toRawBits()
+            val bits = eq.process(sample, endOfSource).toRawBits()
             repeat(channels) {
                 bytes[offset++] = bits.toByte(); bytes[offset++] = (bits ushr 8).toByte()
                 bytes[offset++] = (bits ushr 16).toByte(); bytes[offset++] = (bits ushr 24).toByte()

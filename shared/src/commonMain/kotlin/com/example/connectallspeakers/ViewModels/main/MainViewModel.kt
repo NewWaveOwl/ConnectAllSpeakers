@@ -38,6 +38,8 @@ import com.example.connectallspeakers.model.profiles.ProfileMode
 import com.example.connectallspeakers.model.profiles.SetupProfile
 import com.example.connectallspeakers.state.ProfileStorageStatus
 import kotlinx.coroutines.CancellationException
+import com.example.connectallspeakers.model.audio.EqBand
+import com.example.connectallspeakers.model.audio.SpeakerEq
 
 /** Owns session edits and routes explicit playback requests to the platform controller.
  * @param initialState Optional deterministic session used by behavior tests.
@@ -133,6 +135,9 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             is MainAction.RenameSpeaker -> editSelected { it.copy(name = action.name.take(80)) }
             is MainAction.AssignChannel -> editSelected { it.copy(channel = action.channel) }
             is MainAction.SetVolume -> editSelected { it.copy(volume = action.percent.coerceIn(0, 100)) }
+            is MainAction.SetEqEnabled -> editEq { it.copy(enabled = action.enabled) }
+            is MainAction.SetEqBand -> editEq { it.withBand(action.index, EqBand(action.frequencyHz, action.gainDb, action.q)) }
+            MainAction.ResetEq -> editEq { SpeakerEq() }
             is MainAction.SetDelay -> {
                 val current = state.value
                 when {
@@ -191,9 +196,10 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             routes(before).map { it.endpointId to it.delayMillis } != routes(after).map { it.endpointId to it.delayMillis }) {
             stopPlayback()
             if (action is MainAction.SetDelay || action is MainAction.SelectCalibrationReference || action is MainAction.SetDriftCorrection || action == MainAction.ResetDelays) {
-                mutableState.update { it.copy(feedback = "Timing settings changed. Press Play to restart; calibration cues use manual delay only.") }
+                mutableState.update { it.copy(feedback = "Timing settings changed. Press Play to restart; calibration cues use gain, EQ and manual delay without drift correction.") }
             }
-        } else if (action is MainAction.SetVolume || action is MainAction.AssignChannel) {
+        } else if (action is MainAction.SetVolume || action is MainAction.AssignChannel || action is MainAction.SetEqEnabled ||
+            action is MainAction.SetEqBand || action == MainAction.ResetEq) {
             val latest = routes(after)
             val testEndpoint = requestedTestEndpointId ?: after.playback.takeIf { it.isTestTone }?.activeEndpointIds?.singleOrNull()
             playbackController?.updateRoutes(if (testEndpoint != null) latest.filter { it.endpointId == testEndpoint } else latest)
@@ -214,6 +220,21 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
      */
     private fun editSelected(transform: (RoomSpeaker) -> RoomSpeaker) = editRoom { room ->
         room.copy(speakers = room.speakers.map { if (it.id == room.selectedSpeakerId) transform(it) else it })
+    }
+
+    /** Validates the selected card's parameters and known actual source rate before changing any room/route.
+     * @param transform Requested EQ edit; invalid floats/frequencies retain the previous safe settings.
+     */
+    private fun editEq(transform: (SpeakerEq) -> SpeakerEq) {
+        val selected = state.value.selectedSpeaker ?: return
+        try {
+            val next = transform(selected.eq)
+            if (!state.value.demoMode) state.value.playback.source?.sampleRate?.let { next.validateForSampleRate(it) }
+            editSelected { it.copy(eq = next) }
+            mutableState.update { it.copy(dialogError = null, feedback = null) }
+        } catch (invalid: IllegalArgumentException) {
+            mutableState.update { it.copy(dialogError = invalid.message, feedback = invalid.message) }
+        }
     }
 
     /** Snaps completed gestures; retaining continuous intermediate moves avoids drag stalling.
@@ -455,7 +476,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
 
     /** @param snapshot Session to inspect. @return Real routes, preserving names/positions separately. */
     private fun routes(snapshot: MainUiState): List<PlaybackRoute> = snapshot.selectedSetup?.speakers.orEmpty().mapNotNull { speaker ->
-        speaker.output?.let { PlaybackRoute(it.endpointId, speaker.channel, speaker.volume, speaker.delayMillis) }
+        speaker.output?.let { PlaybackRoute(it.endpointId, speaker.channel, speaker.volume, speaker.delayMillis, speaker.eq) }
     }
 
     /** Validates the entire room rather than silently omitting unavailable/demo/extra outputs.
@@ -505,7 +526,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         }
         val id = selected.id
         requestedTestEndpointId = output.endpointId
-        playbackController.testSpeaker(PlaybackRoute(output.endpointId, selected.channel, selected.volume, selected.delayMillis))
+        playbackController.testSpeaker(PlaybackRoute(output.endpointId, selected.channel, selected.volume, selected.delayMillis, selected.eq))
         mutableState.update { it.copy(testingSpeakerId = id,
             feedback = "${SPEAKER_TEST_DURATION_MILLIS / 1000}-second test requested for ${selected.name}. App volume: ${selected.volume}%. Press Stop to end early.") }
     }

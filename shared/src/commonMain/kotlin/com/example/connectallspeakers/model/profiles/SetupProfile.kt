@@ -3,6 +3,7 @@ package com.example.connectallspeakers.model.profiles
 import com.example.connectallspeakers.model.RoomPosition
 import com.example.connectallspeakers.model.SpeakerChannel
 import com.example.connectallspeakers.model.audio.MAX_OUTPUT_DELAY_MILLIS
+import com.example.connectallspeakers.model.audio.SpeakerEq
 
 /** Maximum UTF-8 profile size, including framing; enforced before parsing and writing. */
 const val MAX_PROFILE_BYTES = 1_048_576
@@ -21,12 +22,14 @@ enum class ProfileMode { Real, Demo }
  * @property endpointName Last saved display label, used until discovery supplies fresh metadata.
  * @property delayMillis Manual delay in whole milliseconds, 0..500.
  * @property extensions Optional future settings, retained verbatim; keys start with ext., for example ext.eq.
+ * @property eq Validated per-card EQ; older schema-one profiles migrate to neutral/bypassed defaults.
  */
 data class SpeakerProfile(
     val id: String, val name: String, val channel: SpeakerChannel, val volume: Int,
     val position: RoomPosition, val homePosition: RoomPosition,
     val endpointId: String? = null, val endpointName: String? = null, val delayMillis: Int = 0,
     val extensions: Map<String, String> = emptyMap(),
+    val eq: SpeakerEq = SpeakerEq(),
 )
 
 /** One explicitly saved room, independent of later in-memory edits.
@@ -53,7 +56,7 @@ data class RoomProfile(
  */
 data class ProfileBank(val rooms: List<RoomProfile> = emptyList(), val selectedRoomId: String? = null)
 
-/** Version-one durable workspace. Schema numbering is owned by the codec.
+/** Durable workspace; the codec reads version one and writes version two with typed EQ.
  * @property real Real endpoint assignments, independent of demo fixtures.
  * @property demo Explicitly saved sample workspace.
  * @property mode Active bank at the last successful save/delete.

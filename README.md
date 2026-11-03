@@ -6,9 +6,9 @@ selected Windows outputs. It uses Kotlin Multiplatform, Compose Multiplatform
 and Material 3, with Windows Core Audio discovery and WASAPI playback.
 
 **Current state — November 2, 2026:** experimental WAV/MP3 playback, engine timing
-diagnostics, manual per-output delay, opt-in experimental clock-drift correction
-and explicitly saved room profiles are implemented. Playback has been reported
-working on a Windows PC. Drift
+diagnostics, manual per-output delay, per-speaker EQ, opt-in experimental
+clock-drift correction and explicitly saved room profiles are implemented.
+Playback has been reported working on a Windows PC. Drift
 correction is validated with synthetic clocks/PCM; user acoustic calibration,
 sustained hardware results and production synchronization remain pending.
 
@@ -37,10 +37,15 @@ sustained hardware results and production synchronization remain pending.
 - Opt into bounded experimental drift correction for two-output file playback.
   The selected reference keeps its original rate; the follower is resampled
   gently. Drift, correction and uncertainty are labeled, and unreliable timing
-  stops the session. It is **off by default**; cues/tests use manual delay only.
+  stops the session. It is **off by default**; cues/tests use gain, EQ and manual
+  delay without drift correction.
   See [method, limits and twenty-minute user checks](docs/ClockDriftCorrection.md).
 - Create, rename and delete setups; rename speakers; drag cards; use snap-to-grid,
   zoom and Reset positions. Moving cards changes the layout, not audio timing.
+- Adjust three independent bell EQ bands per speaker, with frequency/gain/Q,
+  bypass/reset, smoothed live changes and explicit boost headroom. EQ settings
+  save with each room; older profiles load neutral/bypassed. See
+  [EQ limits, processing and user checks](docs/PerSpeakerEq.md).
 - Save room settings on this PC and restore them after reopening, including exact
   endpoint IDs, names, channels, app volume, layout and manual calibration. Save
   confirms only after durable storage succeeds; unsaved edits remain session-only.
@@ -91,7 +96,7 @@ for generating the [manual test signals](docs/WindowsPlayback.md#manual-checks--
 ## Validation
 
 Latest recorded checks on November 2, 2026: desktop compilation, Android debug
-build and Windows app-image packaging passed; **53 shared JVM tests and 102 desktop
+build and Windows app-image packaging passed; **59 shared JVM tests and 116 desktop
 tests passed**, with zero failures, errors or skips. These automated checks use
 offline fixtures and fake playback outputs. Manual playback was reported
 successful; detailed device/driver and timing measurements are not recorded.
@@ -111,7 +116,7 @@ remain separate verification work.
 - User-measured acoustic calibration and sustained drift/quality results, then
   evidence-based tuning/hardening of the experimental correction. Fixed manual
   delay alone does not correct drift or prove synchronized playback.
-- EQ and configuration settings.
+- Configuration settings and further processing/quality improvements.
 - More than two playback outputs, surround and additional source formats.
 - System-wide Windows audio input and the planned [virtual output](docs/WindowsVirtualOutput.md).
 - Android companion/playback capability work. The Android launcher builds, but

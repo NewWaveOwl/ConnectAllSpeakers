@@ -16,7 +16,7 @@ and does not restore an audio file. Android/web launchers remain session-only.
   added to a saved workspace on reopening.
 - Room/card selection, names, exact endpoint IDs, source channels, app volume,
   current/home normalized positions, snap/zoom, manual delay/reference and the
-  experimental drift opt-in are retained. The last successful Save remembers the
+  experimental drift opt-in and per-speaker EQ parameters are retained. The last successful Save remembers the
   active mode and room selection. Switching rooms/modes alone does not write.
 - **Delete** of a saved room also deletes its durable snapshot. The confirmation
   explains this. Removal completes after storage succeeds; a failure leaves the
@@ -83,8 +83,8 @@ before writing again. This is conflict detection, not a live multi-window merge.
 owns the Windows directory, bounded reads, locks, flushed temporary files and
 atomic replacement. No new dependencies were added.
 
-Format **version 1** is strict UTF-8, at most **1 MiB**, with header
-`ALLCONNECT-PROFILES<TAB>1`. Named-key records are separated by newlines:
+The current writer uses **version 2**, strict UTF-8 at most **1 MiB**, with header
+`ALLCONNECT-PROFILES<TAB>2`. Both versions 1 and 2 can be read. Named-key records are separated by newlines:
 workspace (`W`), ordered Real/Demo banks (`B`), room (`R`) and card (`S`). Bank
 room counts and room card counts are explicit. A final `END` line and terminating
 newline are mandatory. Field values escape backslash, tab, newline and carriage
@@ -101,9 +101,13 @@ positions 0–1 and zoom 0.75–1.5. The effective reference must have zero dela
 Optional future room/card fields use bounded **`ext.*`** keys (up to 32, key up to
 80/value up to 4096 characters). The codec and editing/save mapping retain them
 by stable identity. A tested `ext.eq.lowGainDb` fixture survives an older editor
-changing volume/name without losing room settings. This is storage compatibility,
-**not EQ processing**. A future EQ implementation must validate its own parameters
-before applying them. Required semantic changes need a new schema version and an
+changing volume/name without losing room settings; such legacy examples remain
+opaque and are never activated. [Per-speaker EQ](PerSpeakerEq.md) now uses required
+typed version-two fields (`eqEnabled`, three Hz/dB/Q groups), checked by the immutable
+parameter model and checked against the actual source rate before rendering.
+Version one migrates to neutral, bypassed EQ with every existing room setting intact.
+Loading does not rewrite a file; a successful explicit Save upgrades it atomically.
+Failed upgrades preserve the original bytes. Required semantic changes need a new schema version and an
 explicit migration with old-to-new fixture tests; older apps reject newer versions
 and protect their files. There is no pre-v1 on-disk schema to migrate.
 

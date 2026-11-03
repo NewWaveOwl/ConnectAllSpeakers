@@ -3,8 +3,11 @@ package com.example.connectallspeakers.data.profiles
 import com.example.connectallspeakers.model.RoomPosition
 import com.example.connectallspeakers.model.SpeakerChannel
 import com.example.connectallspeakers.model.profiles.*
+import com.example.connectallspeakers.model.audio.EqBand
+import com.example.connectallspeakers.model.audio.SpeakerEq
 
-/** Small, dependency-free UTF-8 record format, version 1. Fields use named keys and escaped values.
+/** Small, dependency-free UTF-8 record format, writing version 2 and reading versions 1/2.
+ * Version one migrates to neutral/bypassed EQ without changing any existing room settings.
  * Strict framing/counts reject truncation; optional ext. fields survive older-editor round trips.
  * Required semantic changes need a new version and an explicit migration before opening it.
  */
@@ -17,7 +20,7 @@ object SetupProfileCodec {
     fun encode(profile: SetupProfile): ByteArray {
         profile.validate()
         val text = buildString {
-            append("ALLCONNECT-PROFILES\t1\n")
+            append("ALLCONNECT-PROFILES\t2\n")
             record("W", mapOf("mode" to profile.mode.name))
             for ((mode, bank) in listOf(ProfileMode.Real to profile.real, ProfileMode.Demo to profile.demo)) {
                 record("B", mapOf("mode" to mode.name, "selected" to bank.selectedRoomId.orEmpty(), "rooms" to bank.rooms.size.toString()))
@@ -31,7 +34,10 @@ object SetupProfileCodec {
                         "x" to speaker.position.x.toString(), "y" to speaker.position.y.toString(),
                         "homeX" to speaker.homePosition.x.toString(), "homeY" to speaker.homePosition.y.toString(),
                         "endpoint" to speaker.endpointId.orEmpty(), "endpointName" to speaker.endpointName.orEmpty(),
-                        "delayMs" to speaker.delayMillis.toString()) + speaker.extensions)
+                        "delayMs" to speaker.delayMillis.toString(), "eqEnabled" to speaker.eq.enabled.toString(),
+                        "eq1Hz" to speaker.eq.low.frequencyHz.toString(), "eq1Db" to speaker.eq.low.gainDb.toString(), "eq1Q" to speaker.eq.low.q.toString(),
+                        "eq2Hz" to speaker.eq.mid.frequencyHz.toString(), "eq2Db" to speaker.eq.mid.gainDb.toString(), "eq2Q" to speaker.eq.mid.q.toString(),
+                        "eq3Hz" to speaker.eq.high.frequencyHz.toString(), "eq3Db" to speaker.eq.high.gainDb.toString(), "eq3Q" to speaker.eq.high.q.toString()) + speaker.extensions)
                 }
             }
             append("END\n")
@@ -52,7 +58,8 @@ object SetupProfileCodec {
         require(text.endsWith('\n')) { "Saved setups are truncated (missing end marker)." }
         val lines = text.dropLast(1).split('\n')
         require(lines.size <= 10_000 && lines.first().startsWith("ALLCONNECT-PROFILES\t")) { "Invalid saved setup format." }
-        require(lines.first() == "ALLCONNECT-PROFILES\t1") { "Unsupported saved setup version. Update the app or move this file aside before retrying." }
+        val version = lines.first().substringAfter('\t').toIntOrNull()
+        require(version == 1 || version == 2) { "Unsupported saved setup version. Update the app or move this file aside before retrying." }
         var cursor = 1
         fun read(kind: String): Fields {
             require(cursor < lines.lastIndex) { "Saved setups are truncated." }
@@ -91,8 +98,13 @@ object SetupProfileCodec {
                     val home = RoomPosition(card.number("homeX"), card.number("homeY"))
                     val endpoint = card.optional("endpoint"); val endpointName = card.optional("endpointName")
                     val delay = card.integer("delayMs")
+                    val eq = if (version == 1) SpeakerEq() else {
+                        val enabled = card.bool("eqEnabled")
+                        fun band(index: Int) = EqBand(card.decimal("eq${index}Hz"), card.decimal("eq${index}Db"), card.decimal("eq${index}Q"))
+                        SpeakerEq(enabled, band(1), band(2), band(3))
+                    }
                     SpeakerProfile(cardId, cardName, channel, volume, position, home, endpoint, endpointName, delay,
-                        card.finish(allowExtensions = true))
+                        card.finish(allowExtensions = true), eq)
                 }
                 RoomProfile(id, name, speakers, selectedCard, snap, zoom, reference, drift, extras)
             }
@@ -145,6 +157,8 @@ private class Fields(private val values: MutableMap<String, String>) {
     fun count(key: String): Int = integer(key).also { require(it in 0..64) { "Too many saved $key." } }
     /** @param key Float key. @return Parsed value, subsequently checked for finite supported bounds. */
     fun number(key: String): Float = requireNotNull(text(key).toFloatOrNull()) { "Invalid saved coordinate: $key." }
+    /** @param key Double key. @return Value checked by the immutable EQ parameter model. */
+    fun decimal(key: String): Double = requireNotNull(text(key).toDoubleOrNull()) { "Invalid saved EQ value: $key." }
     /** @param key Boolean key. @return Strict boolean. */
     fun bool(key: String): Boolean = requireNotNull(text(key).toBooleanStrictOrNull()) { "Invalid saved preference: $key." }
     /** @param allowExtensions Whether optional ext. keys are supported. @return Independent remaining fields. */

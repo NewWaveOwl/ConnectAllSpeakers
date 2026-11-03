@@ -21,8 +21,9 @@ claim of calibrated or production-synchronized Bluetooth playback.
 
 The reference keeps its original source rate. Only the other output is resampled.
 Per-output gain/channel and manual delay remain independent. Calibration cues
-and Test speaker deliberately use manual delay only, even when the room's drift
-option is enabled. One-output correction is rejected with feedback; disable the
+and Test speaker use app gain, EQ and manual delay without drift correction,
+even when the room's drift option is enabled. Bypass [EQ](PerSpeakerEq.md) for
+initial calibration. One-output correction is rejected with feedback; disable the
 option to use ordinary one-output playback. Rooms and Save setup snapshots retain
 their own option/reference. [Explicit desktop saves](PersistentSetups.md) retain
 those preferences across reopening; unsaved edits are discarded. No drift

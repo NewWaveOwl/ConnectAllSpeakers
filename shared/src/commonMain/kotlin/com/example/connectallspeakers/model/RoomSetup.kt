@@ -3,6 +3,7 @@ package com.example.connectallspeakers.model
 import com.example.connectallspeakers.model.audio.AudioOutputDevice
 import com.example.connectallspeakers.model.audio.OutputAvailability
 import com.example.connectallspeakers.model.audio.MAX_OUTPUT_DELAY_MILLIS
+import com.example.connectallspeakers.model.audio.SpeakerEq
 
 /** Explicit presentation channels; dragging never changes this assignment.
  * @property label Inspector label.
@@ -29,6 +30,7 @@ data class RoomPosition(val x: Float, val y: Float)
  * @property homePosition Position restored by Reset positions.
  * @property output Windows endpoint metadata; null only for explicit demo samples.
  * @property delayMillis Manual delay in whole milliseconds, validated to 0..500.
+ * @property eq Independent app EQ, neutral and bypassed by default.
  */
 data class RoomSpeaker(
     val id: String,
@@ -39,6 +41,7 @@ data class RoomSpeaker(
     val homePosition: RoomPosition = position,
     val output: AudioOutputDevice? = null,
     val delayMillis: Int = 0,
+    val eq: SpeakerEq = SpeakerEq(),
 ) {
     init { require(delayMillis in 0..MAX_OUTPUT_DELAY_MILLIS) { "Unsupported speaker delay." } }
     /** True only for an explicit demo sample, never a discovered endpoint. */

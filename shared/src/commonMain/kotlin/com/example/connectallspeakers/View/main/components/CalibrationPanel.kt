@@ -66,7 +66,7 @@ fun CalibrationPanel(state: MainUiState, onAction: (MainAction) -> Unit) {
                 WorkspaceButton("Stop", { onAction(MainAction.Stop) }, enabled = state.playback.activeEndpointIds.isNotEmpty())
                 WorkspaceButton("Reset delays", { onAction(MainAction.ResetDelays) }, enabled = room.speakers.any { it.delayMillis != 0 })
             }
-            Text("Cues: 3-second warmup, then 12 matching pulses. Cues/tests apply manual delay only. Engine timing does not measure acoustic/Bluetooth latency.",
+            Text("Cues: 3-second warmup, then 12 matching pulses. Cues/tests use app gain, EQ and manual delay; drift correction is off. Bypass EQ for initial calibration. Engine timing does not measure acoustic/Bluetooth latency.",
                 style = MaterialTheme.typography.bodySmall, color = C.Muted)
             Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(CalibrationGap)) {
@@ -120,7 +120,7 @@ private fun TimingDetails(name: String, packet: OutputTiming?) {
 @Composable
 private fun DriftDetails(timing: OutputDriftTiming?) {
     if (timing == null) {
-        Text("Drift correction: Off (calibration cues and speaker tests use manual delay only).", style = MaterialTheme.typography.bodySmall, color = C.Muted)
+        Text("Drift correction: Off for calibration cues and speaker tests; gain, EQ and manual delay still apply.", style = MaterialTheme.typography.bodySmall, color = C.Muted)
         return
     }
     Text("Experimental drift: ${timing.phase}${if (timing.isReference) " · Reference" else " · Follower"}\n" +

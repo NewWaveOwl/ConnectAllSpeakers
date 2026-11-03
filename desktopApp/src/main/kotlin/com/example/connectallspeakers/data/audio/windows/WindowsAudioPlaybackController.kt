@@ -16,6 +16,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -56,6 +57,7 @@ class WindowsAudioPlaybackController internal constructor(
     private val closed = AtomicBoolean(false)
     private val generation = AtomicLong()
     private val liveRoutes = AtomicReference<List<PlaybackRoute>>(emptyList())
+    private val routeUpdateError = AtomicReference<String?>(null)
     private val commands = Channel<Command>(Channel.CONFLATED)
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private var source: DecodedAudio? = null
@@ -130,12 +132,23 @@ class WindowsAudioPlaybackController internal constructor(
     override fun pause() { enqueue(Kind.Pause) }
     /** Cancels pending work and stops every stream; the loaded file stays available at position zero. */
     override fun stop() { enqueue(Kind.Stop) }
-    /** Updates gain/channel without a command per slider tick; delay changes stop for explicit restart.
+    /** Updates gain/channel/EQ without a command per slider tick; delay changes stop for explicit restart.
+     * Rejects incompatible source-rate EQ while retaining all previously safe routes.
      * @param routes Latest selected room routes. A different endpoint set requires an explicit new Play.
      */
     override fun updateRoutes(routes: List<PlaybackRoute>) {
         if (closed.get()) return
         val snapshot = routes.toList()
+        try {
+            mutablePlayback.value.source?.sampleRate?.let { rate -> snapshot.forEach { it.eq.validateForSampleRate(rate) } }
+        } catch (invalid: IllegalArgumentException) {
+            val message = invalid.message ?: "EQ update rejected; previous settings remain active."
+            routeUpdateError.set(message)
+            mutablePlayback.update { it.copy(routeUpdateError = message) }
+            return
+        }
+        routeUpdateError.set(null)
+        mutablePlayback.update { it.copy(routeUpdateError = null) }
         val previous = liveRoutes.getAndSet(snapshot)
         if (snapshot.any { next -> previous.any { it.endpointId == next.endpointId && it.delayMillis != next.delayMillis } }) stop()
     }
@@ -180,6 +193,7 @@ class WindowsAudioPlaybackController internal constructor(
             when (command.kind) {
                 Kind.Load -> {
                     releaseSession()
+                    routeUpdateError.set(null)
                     lastTimings = emptyList()
                     publish(PlaybackPhase.Loading, "Reading audio file…")
                     val decoded = decoder.decode(requireNotNull(command.path)) { stale(command.epoch) }
@@ -189,6 +203,8 @@ class WindowsAudioPlaybackController internal constructor(
                 }
                 Kind.Play -> {
                     validate(command.routes)
+                    val rate = lastTimings.firstOrNull()?.sampleRate ?: source?.sampleRate
+                    rate?.let { processingRate -> command.routes.forEach { it.eq.validateForSampleRate(processingRate) } }
                     require(command.referenceEndpointId == null || command.routes.size == 2 && command.routes.any {
                         it.endpointId == command.referenceEndpointId && it.delayMillis == 0
                     }) { "Drift correction needs two outputs and an explicit zero-delay reference." }
@@ -231,6 +247,8 @@ class WindowsAudioPlaybackController internal constructor(
     private fun start(command: Command, audio: DecodedAudio, test: Boolean, calibration: Boolean = false) {
         releaseSession()
         validate(command.routes)
+        command.routes.forEach { it.eq.validateForSampleRate(audio.sampleRate) }
+        routeUpdateError.set(null)
         checkCurrent(command.epoch)
         testing = test
         calibrating = calibration
@@ -315,7 +333,8 @@ class WindowsAudioPlaybackController internal constructor(
     private fun publish(phase: PlaybackPhase, message: String, position: Long = 0) {
         mutablePlayback.value = PlaybackSnapshot(phase,
             if (testing || calibrating) mutablePlayback.value.source else source?.description, position, sessionIds.toSet(), testing, message,
-            outputTimings = lastTimings, timingSequence = timingSequence, isCalibration = calibrating)
+            outputTimings = lastTimings, timingSequence = timingSequence, isCalibration = calibrating,
+            routeUpdateError = routeUpdateError.get())
     }
 
     companion object {

@@ -41,12 +41,14 @@ data class OutputClockTiming(val positionTicks: Long, val frequencyTicksPerSecon
  * @property underruns Detected empty running queues before the end of this session.
  * @property isLive Whether this packet still describes an open session.
  * @property drift Experimental drift-control diagnostics, or null when correction is disabled.
+ * @property eq Per-output EQ guard/transition diagnostics, or null without a prepared processor.
  */
 data class OutputTiming(val endpointId: String, val sampleRate: Int, val delayMillis: Int,
     val delayFrames: Int, val capacityFrames: Int, val submittedFrames: Long,
     val queuedFrames: Int?, val sourcePositionFrames: Long?, val clock: OutputClockTiming? = null,
     val clockMessage: String? = "Clock unavailable", val streamLatencyMillis: Double? = null,
-    val underruns: Int = 0, val isLive: Boolean = true, val drift: OutputDriftTiming? = null) {
+    val underruns: Int = 0, val isLive: Boolean = true, val drift: OutputDriftTiming? = null,
+    val eq: OutputEqTiming? = null) {
     /** Nominal queue duration at the output-format rate, or Unknown; not acoustic latency. */
     val queuedMillis: Double? get() = queuedFrames?.let { it * 1000.0 / sampleRate }
 
@@ -56,5 +58,5 @@ data class OutputTiming(val endpointId: String, val sampleRate: Int, val delayMi
      */
     fun unavailable(reason: String): OutputTiming = copy(isLive = false, queuedFrames = null,
         sourcePositionFrames = null, clock = null, clockMessage = reason, streamLatencyMillis = null,
-        drift = drift?.unavailable(reason))
+        drift = drift?.unavailable(reason), eq = eq?.copy(transitioning = false, message = reason))
 }

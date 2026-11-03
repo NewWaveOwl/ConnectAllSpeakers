@@ -66,8 +66,10 @@ fun SpeakerInspector(speaker: RoomSpeaker?, hasSetup: Boolean, demoMode: Boolean
                 if (!demoMode && !speaker.isSample) DelayControl(speaker.delayMillis, speaker.id == referenceSpeakerId) {
                     onAction(MainAction.SetDelay(it))
                 }
+                WorkspaceButton(if (speaker.eq.enabled) "EQ · enabled" else "EQ · bypassed",
+                    { onAction(MainAction.OpenDialog(MainDialog.SpeakerEq)) }, Modifier.fillMaxWidth())
                 WorkspaceButton("Test speaker (${SPEAKER_TEST_DURATION_MILLIS / 1000}s)", { onAction(MainAction.TestSpeaker) }, Modifier.fillMaxWidth(), Glyph.Play)
-                Text("Plays a ${SPEAKER_TEST_DURATION_MILLIS / 1000}-second tone at app volume. Press Stop to end early.\nCanvas position does not change audio timing.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
+                Text("Plays a ${SPEAKER_TEST_DURATION_MILLIS / 1000}-second tone using app volume, EQ and delay. Press Stop to end early.\nCanvas position does not change audio timing.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
                 speaker.output?.let { output ->
                     Text("Windows: ${output.displayName}\n${output.type.label()}${if (output.isDefault) " · Default output" else ""}",
                         color = C.Muted, style = MaterialTheme.typography.bodySmall)
