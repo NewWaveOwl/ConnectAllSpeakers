@@ -13,7 +13,7 @@ broader hardware compatibility and release checks remain unverified.
 
 The current deliverable builds on the shared [frontend prototype](FrontendPrototype.md):
 an interactive Windows workspace with active Core Audio output discovery and
-in-memory room state. Samples remain available in explicit Demo mode. Enumeration
+explicitly saved room profiles and session-only unsaved edits. Samples remain available in explicit Demo mode. Enumeration
 does not pair devices or produce audio; see [discovery](WindowsOutputDiscovery.md). The
 playback implementation and user-run checks are described in
 [WindowsPlayback](WindowsPlayback.md). The milestone checklist below still needs
@@ -39,8 +39,9 @@ Linear app volume (including 0% mute) and bounded manual delay are implemented.
 Choose the slower output as a zero-delay reference and delay the faster one by
 0–500 ms; changes stop playback and require a new Play. See
 [TimingCalibration](TimingCalibration.md) for rounding, reset behavior, repeatable
-cues and measurement reports. EQ and persistent groups require later work;
-current room save snapshots, reference and delays exist only for the session.
+cues and measurement reports. [Explicit setup storage](PersistentSetups.md) retains
+saved rooms, reference, delays and drift opt-in across reopening, without restoring
+an audio file or starting playback. Unsaved edits remain session-only. EQ requires later work.
 
 ## Code ownership
 
@@ -77,7 +78,7 @@ Speaker count and reliability depend on hardware/drivers.
 
 Local-file stereo, individual gain/channel controls and manual delay are now
 implemented. Acoustic validation and production hardening remain before any
-sustained synchronization claim; saved groups and additional outputs follow.
+sustained synchronization claim; EQ and additional outputs follow.
 System-audio capture, 2.1/7.1 and Android
 playback are separate later features.
 

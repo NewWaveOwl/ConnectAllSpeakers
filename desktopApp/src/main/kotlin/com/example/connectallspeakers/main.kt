@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import com.example.connectallspeakers.data.audio.windows.WindowsAudioOutputRepository
 import com.example.connectallspeakers.data.audio.windows.WindowsAudioPlaybackController
+import com.example.connectallspeakers.data.profiles.DesktopSetupProfileRepository
 import java.awt.FileDialog
 import java.io.File
 import java.awt.Dimension
@@ -31,6 +32,7 @@ private val MinimumWindowHeight = 480.dp
 fun main() = application {
     val outputs = remember { WindowsAudioOutputRepository() }
     val playback = remember(outputs) { WindowsAudioPlaybackController(outputs) }
+    val profiles = remember { DesktopSetupProfileRepository() }
     val applicationScope = rememberCoroutineScope()
     var closing by remember { mutableStateOf(false) }
     DisposableEffect(outputs, playback) { onDispose { playback.close(); outputs.close() } }
@@ -42,6 +44,7 @@ fun main() = application {
                 applicationScope.launch {
                     playback.close(); playback.awaitClosed()
                     outputs.close(); outputs.awaitClosed()
+                    profiles.close()
                     exitApplication()
                 }
             }
@@ -65,7 +68,7 @@ fun main() = application {
             window.addWindowListener(listener)
             onDispose { window.removeWindowListener(listener) }
         }
-        App(outputs, playback) {
+        App(outputs, playback, profiles) {
             val picker = FileDialog(window, "Choose a local WAV or MP3 file", FileDialog.LOAD)
             try {
                 picker.file = "*.wav;*.mp3"

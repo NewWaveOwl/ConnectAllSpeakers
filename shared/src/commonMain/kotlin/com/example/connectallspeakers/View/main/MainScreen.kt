@@ -21,6 +21,7 @@ import com.example.connectallspeakers.View.main.components.*
 import com.example.connectallspeakers.ViewModels.main.MainAction
 import com.example.connectallspeakers.state.MainDialog
 import com.example.connectallspeakers.state.MainUiState
+import com.example.connectallspeakers.state.ProfileStorageStatus
 import com.example.connectallspeakers.ui.theme.AllConnectColors as C
 import connectallspeakers.shared.generated.resources.Res
 import connectallspeakers.shared.generated.resources.allconnect_logo_render
@@ -40,12 +41,20 @@ private val WorkspaceChromeHeight = 540.dp
  */
 @Composable
 fun MainScreen(state: MainUiState, onAction: (MainAction) -> Unit, modifier: Modifier = Modifier) {
+    if (state.profileStorage == ProfileStorageStatus.Loading) {
+        Column(modifier.fillMaxSize().background(C.Paper).padding(ScreenPadding), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            CircularProgressIndicator()
+            Text("Loading saved setups…", modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        }
+        return
+    }
     BoxWithConstraints(modifier.fillMaxSize()) {
         val wide = maxWidth >= StackedBreakpoint
         val canvasHeight = (maxHeight - WorkspaceChromeHeight).coerceAtLeast(MinCanvasHeight)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).background(C.Paper)) {
             WorkspaceHeader { onAction(MainAction.OpenDialog(MainDialog.Settings)) }
             SetupToolbar(state, onAction)
+            ProfileStorageStatus(state, onAction)
             if (wide) {
                 Row(Modifier.fillMaxWidth().padding(ScreenPadding), horizontalArrangement = Arrangement.spacedBy(ScreenPadding)) {
                     RoomColumn(state, onAction, Modifier.weight(1f), canvasHeight)
@@ -117,7 +126,7 @@ private fun SetupToolbar(state: MainUiState, onAction: (MainAction) -> Unit) {
         }
         WorkspaceButton("Add setup", { onAction(MainAction.OpenDialog(MainDialog.AddSetup)) }, Modifier.width(148.dp), Glyph.Add, primary = true)
         WorkspaceButton("Edit", { onAction(MainAction.OpenDialog(MainDialog.RenameSetup)) }, Modifier.width(96.dp), Glyph.Edit, enabled = state.selectedSetup != null)
-        WorkspaceButton("Delete", { onAction(MainAction.OpenDialog(MainDialog.DeleteSetup)) }, Modifier.width(108.dp), Glyph.Delete, enabled = state.selectedSetup != null)
+        WorkspaceButton("Delete", { onAction(MainAction.OpenDialog(MainDialog.DeleteSetup)) }, Modifier.width(108.dp), Glyph.Delete, enabled = state.selectedSetup != null && !state.savingProfiles)
     }
 }
 
@@ -146,7 +155,8 @@ private fun RoomColumn(state: MainUiState, onAction: (MainAction) -> Unit,
                         setOf(com.example.connectallspeakers.model.SpeakerChannel.Left, com.example.connectallspeakers.model.SpeakerChannel.Right)
                     WorkspaceBadge("${if (stereo) "Stereo" else "Layout"} · ${room.speakers.size} speakers", modifier = Modifier.width(145.5.dp))
                     Spacer(Modifier.width(titleSpace))
-                    WorkspaceButton("Save setup", { onAction(MainAction.SaveSetup) }, Modifier.width(164.dp), Glyph.Save, primary = true)
+                    WorkspaceButton(if (state.savingProfiles) "Saving…" else "Save setup", { onAction(MainAction.SaveSetup) }, Modifier.width(164.dp), Glyph.Save, primary = true,
+                        enabled = !state.savingProfiles && state.profileStorage != ProfileStorageStatus.LoadFailed)
                 }
             }
             PlaybackControls(state.playback, state.demoMode, onAction)

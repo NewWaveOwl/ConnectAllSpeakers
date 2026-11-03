@@ -25,6 +25,7 @@ fun SetupDialogs(state: MainUiState, onAction: (MainAction) -> Unit) {
             SettingsDialog { onAction(MainAction.DismissDialog) }
             return
         }
+        MainDialog.ReloadSetups -> "Reload saved setups?"
     }
     AlertDialog(onDismissRequest = { onAction(MainAction.DismissDialog) }, title = { Text(title) },
         text = {
@@ -40,7 +41,8 @@ fun SetupDialogs(state: MainUiState, onAction: (MainAction) -> Unit) {
                             }
                         }
                     }
-                    MainDialog.DeleteSetup -> Text("Remove “${state.selectedSetup?.name.orEmpty()}” and its session edits?")
+                    MainDialog.DeleteSetup -> Text("Remove “${state.selectedSetup?.name.orEmpty()}” and its edits? If saved, it will also be deleted from this PC. This cannot be undone.")
+                    MainDialog.ReloadSetups -> Text("Stop playback and reload saved setups from this PC? Unsaved edits in both real and demo rooms will be discarded only if loading succeeds. For a damaged or unsupported file, move it aside first; the app will not overwrite it.")
                     else -> {
                         WorkspaceTextField(state.dialogName, { onAction(MainAction.DialogName(it)) }, "Setup name")
                         state.dialogError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
@@ -49,8 +51,8 @@ fun SetupDialogs(state: MainUiState, onAction: (MainAction) -> Unit) {
             }
         },
         confirmButton = {
-            if (dialog != MainDialog.AddSpeaker) TextButton({ onAction(MainAction.ConfirmDialog) }) {
-                Text(if (dialog == MainDialog.DeleteSetup) "Delete" else "Save")
+            if (dialog != MainDialog.AddSpeaker) TextButton({ onAction(MainAction.ConfirmDialog) }, enabled = !state.savingProfiles) {
+                Text(when (dialog) { MainDialog.DeleteSetup -> "Delete"; MainDialog.ReloadSetups -> "Reload"; MainDialog.AddSetup -> "Create"; else -> "Rename" })
             }
         }, dismissButton = { TextButton({ onAction(MainAction.DismissDialog) }) { Text("Cancel") } },
     )

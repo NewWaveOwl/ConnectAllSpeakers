@@ -17,7 +17,8 @@ historical exercises, course policies and unrelated transit rules are not tasks.
 - Start with audio played by our app and two independently active endpoints.
   Bounded manual delay and opt-in experimental drift correction are implemented;
   acoustic validation is pending. Automatic acoustic measurement, system audio
-  capture, persistence, 2.1 and 7.1 are later features.
+  capture, 2.1 and 7.1 are later features. Explicit saved profiles now use a portable
+  versioned schema and per-user desktop atomic storage; unsaved edits remain session-only.
 - Use OS audio APIs through our backend. Do not require an external mixer app.
   A binding/library is a separate dependency decision, with license and packaging review.
 - Bluetooth pairing, connection count, a successful API call or a selected output

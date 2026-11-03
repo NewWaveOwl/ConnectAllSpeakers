@@ -31,7 +31,8 @@ does not edit delay. Each room has independent calibration, including when the
 same endpoint is assigned in another room. **Reset** by the inspector slider
 resets only that selected output; **Reset delays** resets all delays in the
 current room and keeps its reference. Saved setup snapshots include calibration
-for this session. Closing the app still discards all setups/calibration (#8).
+across reopening through [explicit desktop saves](PersistentSetups.md) (#8).
+Unsaved edits are discarded on close; no audio file or playback intent is restored.
 
 Changing delay or reference **stops playback**, including paused or pending
 starts. Press Play or Play calibration cues again to apply it from the start.
@@ -179,8 +180,8 @@ Offline PCM/fake-clock results cannot establish acoustic synchronization.
    Compare early/late offsets and record drift instead of attributing it to fixed
    calibration. Fixed delay cannot correct independent-clock drift. The optional
    [#7 experimental flow](ClockDriftCorrection.md) has a separate sustained test.
-9. Stop, close and reopen the app. Expect no remaining playback; calibration and
-   rooms are currently session-only and must be entered again. Native cleanup on
+9. Save setup, stop, close and reopen the app. Expect no remaining playback;
+   explicitly saved rooms/calibration restore, while unsaved edits are discarded. Native cleanup on
    actual hardware and installer behavior still require user verification.
 
 ### Measurement report template
