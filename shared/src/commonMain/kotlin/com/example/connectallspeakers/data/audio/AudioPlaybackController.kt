@@ -4,10 +4,21 @@ import com.example.connectallspeakers.model.audio.PlaybackRoute
 import com.example.connectallspeakers.model.audio.PlaybackSnapshot
 import kotlinx.coroutines.flow.StateFlow
 
-/** Platform-neutral local-file playback operations. The platform app owns native lifetime. */
+/** Platform-neutral file/live playback operations. The platform app owns native lifetime. */
 interface AudioPlaybackController {
+    /** True only for a platform assembly implementing actual owned-endpoint live capture. */
+    val supportsVirtualInput: Boolean get() = false
     /** Current immutable lifecycle, source and failure state. */
     val playback: StateFlow<PlaybackSnapshot>
+
+    /** Explicitly captures our virtual render endpoint and forwards to exact physical targets.
+     * @param endpointId Driver-identified AllConnect source; never chosen by friendly name/default.
+     * @param routes One or two independent physical outputs with user settings.
+     * @throws UnsupportedOperationException On launchers without this capability; no sample fallback.
+     */
+    fun startVirtualInput(endpointId: String, routes: List<PlaybackRoute>) {
+        throw UnsupportedOperationException("Virtual input is unavailable on this platform.")
+    }
 
     /** Loads a user-selected local WAV or MP3 off the UI thread; never starts playback automatically.
      * @param path Native file path returned by the platform file picker.
@@ -21,7 +32,7 @@ interface AudioPlaybackController {
      */
     fun play(routes: List<PlaybackRoute>, driftReferenceEndpointId: String? = null)
 
-    /** Pauses all outputs, retaining their queued frames for an explicit Resume action. */
+    /** Pauses file outputs for explicit Resume. Live input stops and discards its queues instead. */
     fun pause()
 
     /** Stops and releases all outputs; the loaded file remains available for replay from zero. */

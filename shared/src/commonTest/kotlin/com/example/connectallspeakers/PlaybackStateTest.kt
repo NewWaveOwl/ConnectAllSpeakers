@@ -158,4 +158,61 @@ class PlaybackStateTest {
         assertNull(owner.state.value.testingSpeakerId)
         assertEquals(stops + 1, playback.stopped)
     }
+
+    @Test fun secondTestClickCancelsPendingStartupWithoutRequestingAnotherTone() = runTest {
+        val playback = Playback()
+        val owner = owner(Outputs(), playback)
+        runCurrent(); owner.onAction(MainAction.AddOutput("a"))
+        val stops = playback.stopped
+        owner.onAction(MainAction.TestSpeaker)
+        assertNotNull(owner.state.value.testingSpeakerId)
+        owner.onAction(MainAction.TestSpeaker)
+        assertNull(owner.state.value.testingSpeakerId)
+        assertEquals(stops + 1, playback.stopped)
+        assertEquals(1, playback.tested.size)
+        assertEquals("Speaker test stopped.", owner.state.value.feedback)
+    }
+
+    @Test fun sameButtonStopsStartingAndPlayingTestsEvenWhenDiscoveryBecomesUnavailable() = runTest {
+        for (phase in listOf(PlaybackPhase.Starting, PlaybackPhase.Playing)) {
+            val outputs = Outputs(); val playback = Playback()
+            val owner = owner(outputs, playback)
+            runCurrent(); owner.onAction(MainAction.AddOutput("b")); owner.onAction(MainAction.TestSpeaker)
+            playback.playback.value = PlaybackSnapshot(phase, activeEndpointIds = setOf("b"), isTestTone = true)
+            runCurrent()
+            outputs.outputs.value = outputs.outputs.value.copy(status = AudioOutputStatus.Error)
+            runCurrent()
+            val stops = playback.stopped
+            owner.onAction(MainAction.TestSpeaker)
+            assertEquals(stops + 1, playback.stopped)
+            assertNull(owner.state.value.testingSpeakerId)
+            assertEquals(1, playback.tested.size)
+            playback.playback.value = PlaybackSnapshot(PlaybackPhase.Stopped)
+            outputs.outputs.value = outputs.outputs.value.copy(status = AudioOutputStatus.Ready)
+            runCurrent()
+            owner.onAction(MainAction.TestSpeaker)
+            assertEquals(2, playback.tested.size)
+        }
+    }
+
+    @Test fun choosingAnotherSpeakerTestsItsOwnRouteAndReturningToActiveCardStopsIt() = runTest {
+        val playback = Playback()
+        val owner = owner(Outputs(), playback)
+        runCurrent(); owner.onAction(MainAction.AddOutput("a"))
+        val first = owner.state.value.selectedSpeaker!!.id
+        owner.onAction(MainAction.AddOutput("b"))
+        val second = owner.state.value.selectedSpeaker!!.id
+        owner.onAction(MainAction.TestSpeaker)
+        playback.playback.value = PlaybackSnapshot(PlaybackPhase.Playing, activeEndpointIds = setOf("b"), isTestTone = true)
+        runCurrent()
+        owner.onAction(MainAction.SelectSpeaker(first))
+        assertEquals(second, owner.state.value.testingSpeakerId)
+        owner.onAction(MainAction.TestSpeaker)
+        assertEquals(listOf("b", "a"), playback.tested.map { it.endpointId })
+        owner.onAction(MainAction.SelectSpeaker(second)); owner.onAction(MainAction.SelectSpeaker(first))
+        val stops = playback.stopped
+        owner.onAction(MainAction.TestSpeaker)
+        assertEquals(stops + 1, playback.stopped)
+        assertEquals(2, playback.tested.size)
+    }
 }

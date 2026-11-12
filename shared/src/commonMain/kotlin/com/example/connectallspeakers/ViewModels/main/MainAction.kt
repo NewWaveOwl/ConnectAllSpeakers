@@ -53,6 +53,7 @@ sealed interface MainAction {
     data class Zoom(val delta: Float) : MainAction
     data object ResetPositions : MainAction
     data object SaveSetup : MainAction
+    /** Toggles the selected speaker's test: a repeated request stops it, including pending startup. */
     data object TestSpeaker : MainAction
     /** Opens the platform chooser without automatically playing its selection. */
     data object ChooseAudioFile : MainAction
@@ -62,6 +63,12 @@ sealed interface MainAction {
     data object Pause : MainAction
     /** Releases native streams and resets the retained file to its beginning. */
     data object Stop : MainAction
+    /** @property enabled Explicit session-only choice; switching always discards active audio. */
+    data class SetLiveInputMode(val enabled: Boolean) : MainAction
+    /** @property endpointId Exact owned input identity; selecting never starts capture. */
+    data class SelectVirtualInput(val endpointId: String) : MainAction
+    /** Explicitly forwards the selected owned virtual endpoint to the active room. */
+    data object StartVirtualInput : MainAction
     /** @property dialog Modal to open. */
     data class OpenDialog(val dialog: MainDialog) : MainAction
     /** @property name Current setup-name input. */

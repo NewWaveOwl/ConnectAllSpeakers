@@ -47,7 +47,10 @@ reroute an active session.
   The longer continuous signal gives slower outputs time to become audible.
   EQ and manual delay apply; a session that used non-neutral EQ has up to 500 ms
   of additional zero-input decay before manual-delay/native queues finish draining.
-  Stop ends it early, and the card highlight follows the active test session.
+  The test button changes its play icon to pause while startup/testing is active;
+  pressing that same button again cancels/stops the test, rather than pausing
+  a retained tone. Completion/error restores its play icon. The transport Stop
+  also ends it early, and the card highlight follows the active test session.
   The previously loaded file remains available; the test does not resume it.
 - Pause retains each native queue; Resume continues it. Stop releases all streams
   and resets file position. Play after Stop, completion or failure starts at zero.
@@ -139,7 +142,7 @@ app-image directory must stay together; this is not an MSI installation.
 | Volume | During playback change A to 0%, then 50%, then 100%; keep B fixed. Compare with Windows volume. | A is muted at 0%; 50% is half the sample amplitude, not a promise of half perceived loudness. B and Windows master volume stay unchanged. Edits may lag by queued/device latency. |
 | Pause/resume | Pause in the middle of a tone; wait a few seconds; Resume. | All output consumption pauses, possibly with a short device-buffer tail. Position stops advancing and resumes from the retained queue, not the beginning. |
 | Stop/finish | Stop, then Play; also let the file finish naturally. | Stop resets to zero and releases streams. Final buffers drain before finished. Play after Stop/finish starts at zero. No automatic replay. |
-| Test speaker | Select B and press Test speaker (10s) while the file is playing. Try Stop before the test finishes. | File stops. Only B emits a ten-second 440 Hz tone scaled by B's app volume; slower outputs may miss its beginning. Highlight remains for the active test and clears on completion/error/Stop. Stop ends early. File remains selected and does not resume. At 0% the test is silent. |
+| Test speaker | Select B and press Test speaker (10s) while the file is playing. Press the same button again before the test finishes; also try leaving a later test to finish naturally. | File stops. Only B emits a ten-second 440 Hz tone scaled by B's app volume; slower outputs may miss its beginning. The same button shows a pause icon during pending/active testing; clicking it stops and cancels the test. It returns to play on stop/completion/error. Button/icon positions stay fixed. File remains selected and does not resume. At 0% the test is silent. |
 | Mono/resampling | Repeat with `mono-identification-48000.wav` on Left, Right and Mono, and with `stereo-identification-44100.wav`. | Mono source is present on either channel assignment. The 44.1 kHz file has the same pitch/timeline through Windows conversion, or an explicit format error; never a different output. |
 | MP3 sound check | Choose audio, select `stereo-identification-48000.mp3` or your own mono/stereo MP3, then Play. Repeat volume, channel, pause/stop and disconnect checks. | Selecting is silent; Play uses exactly the room's outputs and settings. The generated file has the same left/right pattern, with a small encoder delay/padding. The source name ends in `.mp3`. Test speaker uses its separate ten-second tone. |
 | Disconnect | During two-output playback, turn off/disconnect B. Repeat while paused. | Both streams stop with an error; B's card becomes Unavailable after notification/refresh. Names, channels, positions and app volumes remain. Some buffered sound may trail the disconnect. |
@@ -338,6 +341,19 @@ app was not launched and no sound was played by the agent.
 | Experimental drift | shared `OutputDriftTiming.kt` and per-room opt-in/reference; desktop `DriftController.kt`, `AdaptivePcmRenderer.kt`, `SourceFrameHistory.kt`; [method/limits/report](ClockDriftCorrection.md) |
 | Offline coverage | shared `PlaybackStateTest.kt`; desktop `ChannelRendererTest.kt`, `WavFileDecoderTest.kt`, `Mp3FileDecoderTest.kt`, `Mp3PlaybackControllerTest.kt`, `PlaybackRenderSessionTest.kt`, `WindowsAudioPlaybackControllerTest.kt`, test-only `PlaybackFakes.kt` |
 | Manual fixtures/documentation | `tools/generate_playback_test_files.py`, `tools/generate_mp3_test_fixtures.py`, original MP3 fixtures under desktop test resources, this checklist, `MainDocs.md`, `MainDesign.md`, `FrontendPrototype.md`, `WindowsOutputDiscovery.md` |
+
+## Test-button toggle — November 2, 2026
+
+The inspector's existing test button now swaps play/pause glyphs in the same
+icon slot, preserving its label, size and position. A second activation stops
+the selected card's pending/active test; completion/error restores play. The
+accessible state explains whether activation starts or stops a test. Selecting
+another card offers that card's own test rather than stopping the other card.
+
+Offline state tests cover cancelling startup, stopping Starting/Playing states
+even during a discovery error, restarting and switching the selected card.
+Offscreen inspector fixtures confirmed equal button bounds and Enter-key
+activation in both icon states. No hardware or audible checks were performed.
 
 ## Primary API references
 

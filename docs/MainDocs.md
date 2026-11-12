@@ -30,6 +30,14 @@ Three per-speaker bell EQ bands now add validated frequency/gain/Q, bypass/reset
 100 ms bank crossfades, explicit boost headroom and bounded EOF decay. Saved
 profiles use schema 2 with neutral/bypassed migration from schema 1; see
 [PerSpeakerEq](PerSpeakerEq.md). Listening checks remain user-operated.
+The virtual-output candidate now has portable source/target state and controls,
+an exact-owned-endpoint WASAPI loopback reader, bounded continuous fan-out and
+per-output queue/source rate control. Native render-only driver source and
+hash-verified SYSVAD dependencies live under `output_drivers/windows/virtualAudio`.
+Its x64 Debug build, universal INF/API validation and unsigned catalog creation
+pass on this PC. Signing, driver endpoint, deployment and actual cross-application PCM transfer remain unverified.
+The app's missing-driver state is explicit, and issue #11 remains open. See
+[the candidate and user-operated acceptance checklist](WindowsVirtualOutput.md).
 Production synchronization and surround
 remain planned. See [FrontendPrototype](FrontendPrototype.md),
 [WindowsOutputDiscovery](WindowsOutputDiscovery.md) and
@@ -38,7 +46,7 @@ and [ClockDriftCorrection](ClockDriftCorrection.md)
 for scope, limits and user-operated measurement/checklists.
 
 Selected playback approach: [MainDesign — direct Windows playback](MainDesign.md).
-Future system-audio input: [AllConnect virtual Windows output](WindowsVirtualOutput.md).
+Unaccepted system-audio candidate: [AllConnect virtual Windows output](WindowsVirtualOutput.md).
 
 ## Folder structure and ownership
 
@@ -80,10 +88,12 @@ ConnectAllSpeakers/                 repository / Gradle root
     main.kt                        Windows desktop composition/window lifecycle
     audio/windows/                 Core Audio COM calls and notification bindings
     audio/wasapi/                  shared-mode rendering and native lifetime
+    audio/input/windows/           exact-owned-render-endpoint loopback and mix-format validation
     audio/dsp/                     bounded decoding, gain/channel, EQ, delay, cubic resampling and cues
     data/audio/windows/            single-worker discovery repository and cleanup
     data/profiles/                 per-user atomic file storage and filesystem lifetime
   androidApp/src/main/             retained Android launcher
+  output_drivers/windows/virtualAudio/     render-only driver source, INF, build/package scripts and upstream notices
   webApp/src/webMain/              retained web launcher; not an active audio target
   gradle/libs.versions.toml        pinned dependencies and Android SDK levels
 ```

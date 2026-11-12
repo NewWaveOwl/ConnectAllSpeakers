@@ -30,6 +30,9 @@ enum class ProfileStorageStatus { SessionOnly, Loading, Ready, LoadFailed }
  * @property profileStorage Storage readiness; SessionOnly only on launchers without a storage repository.
  * @property savingProfiles Whether an explicit save or durable deletion is in progress.
  * @property profileError Recoverable storage feedback, retained until a successful load/save.
+ * @property liveInputMode Explicit session-only source choice; never restored as an autoplay intent.
+ * @property virtualInputId Explicit driver-owned input selection, independent of physical room routes.
+ * @property virtualInputSupported Whether this platform supplies a real capture implementation.
  */
 data class MainUiState(
     val setups: List<RoomSetup> = emptySetups(),
@@ -47,6 +50,9 @@ data class MainUiState(
     val profileStorage: ProfileStorageStatus = ProfileStorageStatus.SessionOnly,
     val savingProfiles: Boolean = false,
     val profileError: String? = null,
+    val liveInputMode: Boolean = false,
+    val virtualInputId: String? = null,
+    val virtualInputSupported: Boolean = false,
 ) {
     /** Active room, absent when all rooms have been deleted. */
     val selectedSetup: RoomSetup? get() = setups.find { it.id == selectedSetupId }

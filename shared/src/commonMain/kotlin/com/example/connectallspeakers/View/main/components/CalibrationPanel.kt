@@ -72,11 +72,13 @@ fun CalibrationPanel(state: MainUiState, onAction: (MainAction) -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(CalibrationGap)) {
                 Text("Experimental drift correction · file playback", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
                 Switch(room.driftCorrectionEnabled, { onAction(MainAction.SetDriftCorrection(it)) },
-                    enabled = state.playback.phase != PlaybackPhase.Unsupported && (room.speakers.size == 2 || room.driftCorrectionEnabled),
+                    enabled = !state.liveInputMode && state.playback.phase != PlaybackPhase.Unsupported && (room.speakers.size == 2 || room.driftCorrectionEnabled),
                     modifier = Modifier.semantics { contentDescription = "Experimental two-output clock drift correction" })
             }
             Text("Requires two outputs and the same zero-delay reference. Changes stop playback; press Play to apply. Bounded rate correction may affect sound quality. Hardware/acoustic validation is pending.",
                 style = MaterialTheme.typography.bodySmall, color = C.Muted)
+            if (state.liveInputMode) Text("Live input uses independent queue/source rate control on each output. This file-only option does not apply.",
+                style = MaterialTheme.typography.bodySmall, color = C.Teal)
             TextButton({ showTimings = !showTimings }) { Text(if (showTimings) "Hide engine timing" else "Show engine timing") }
             if (showTimings) SelectionContainer {
                 Column(verticalArrangement = Arrangement.spacedBy(CalibrationGap)) {

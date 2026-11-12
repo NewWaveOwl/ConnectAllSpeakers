@@ -1,0 +1,237 @@
+{
+  "repository": "https://github.com/microsoft/Windows-driver-samples",
+  "revision": "f4c1ff842b6a0001152f44cb61788b216a1c7627",
+  "license": "MS-PL",
+  "files": [
+    {
+      "path": "ContosoKeywordDetector.h",
+      "gitBlobSha1": "6f12f4de7b94ef15eed0f6a18f4be88c84c497ea",
+      "sha256": "4958db43d08bc35518017dd30df09619f7c6868ee2bdcc883715afac0b7aa410"
+    },
+    {
+      "path": "EndpointsCommon/AudioModule0.h",
+      "gitBlobSha1": "c1f0755779b59826afcdd7c3f0efc3139bcf07a7",
+      "sha256": "677e02ee02489e19bfb8ed54d41a77295dfa7c0ac25ecb4b512feafd58a0aaf9"
+    },
+    {
+      "path": "EndpointsCommon/AudioModule1.h",
+      "gitBlobSha1": "9f01eaed8e73e65ee36ff633dad1d9d731d12b8a",
+      "sha256": "731050456b28a07bb159a1a739839d4b30d0564b832f05835d14c5969c2218d5"
+    },
+    {
+      "path": "EndpointsCommon/AudioModule2.h",
+      "gitBlobSha1": "93d3fdf3bf5f3699b9e3c8da82fb6cb288be6e9e",
+      "sha256": "eccc4f030c2cfc1deb9dd56a94ca19d4c878890e36428530db3c0636974362b4"
+    },
+    {
+      "path": "EndpointsCommon/AudioModuleHelper.cpp",
+      "gitBlobSha1": "25ded875e272edf9b972d2d16f6d1823bdbadd6e",
+      "sha256": "d066a0f99f1936fc75e48ad765f53017ce507a05f5535595365190cb23dcecdf"
+    },
+    {
+      "path": "EndpointsCommon/AudioModuleHelper.h",
+      "gitBlobSha1": "fa7a2c233ef7b8b08d05d4239a9add022d52325c",
+      "sha256": "e4f22be32c54eb6a7cdd7ce9b3930cdcaef9ea89b269482d98a6f1c687bf2951"
+    },
+    {
+      "path": "EndpointsCommon/MiniportAudioEngineNode.cpp",
+      "gitBlobSha1": "8c3979f212b7f53147d8a2e74c2914bc6ec02a68",
+      "sha256": "95a45c623f606c33e1380224eae5569c66cf80eaf26a1c1ada13354d44024a06"
+    },
+    {
+      "path": "EndpointsCommon/MiniportStreamAudioEngineNode.cpp",
+      "gitBlobSha1": "49f4cec87a0437fdcf4d0c6ee7d7aae37d02327f",
+      "sha256": "b3d87297326f2a195c844df83d7690b4ad853439389d41b62dba443d8c2a6bce"
+    },
+    {
+      "path": "EndpointsCommon/NewDelete.cpp",
+      "gitBlobSha1": "daa076e29af1d50b6e3adc2e8cdbdeedd06a5339",
+      "sha256": "d5838170c9151d293a7ebe87bf41edb5c5a4747e61bfcc7327f0526bfc2aa86e"
+    },
+    {
+      "path": "EndpointsCommon/NewDelete.h",
+      "gitBlobSha1": "fefcda6e18fe428953e19f0c3afa2a419a9cb43e",
+      "sha256": "f42b295c5a3499eaed8c910e1331f68c91adcfd60c95736c42ae1c1f62b034bc"
+    },
+    {
+      "path": "EndpointsCommon/micarray1toptable.h",
+      "gitBlobSha1": "4d2e31969c00b97c70e6dfbaf0d0e8ae0d0ef1fe",
+      "sha256": "d520f30c422bbf3660dd0027c19f415184db2bd7dd4100ca02a0008294044c19"
+    },
+    {
+      "path": "EndpointsCommon/micarraytopo.cpp",
+      "gitBlobSha1": "1898243af823877cd93628835d08cfbfe28b261f",
+      "sha256": "c3ee5fb38c7d082ace3438d057373f719eef07195a37130c7fc33750194fac1d"
+    },
+    {
+      "path": "EndpointsCommon/micarraytopo.h",
+      "gitBlobSha1": "a4c2d8ae93f6e326d641ab55b086c33a759cd235",
+      "sha256": "d4245e3de76ed33d88bc0e5173d6a68ddfa04ed371ae7cc4da7bcf0821ef22f6"
+    },
+    {
+      "path": "EndpointsCommon/micarraywavtable.h",
+      "gitBlobSha1": "55309092014c4eb0ae3f9daac509df8c2385f25d",
+      "sha256": "2b00b4cca130fe7401dcf6431d1d21ae0723a3f0980b7347eab002e361e0a953"
+    },
+    {
+      "path": "EndpointsCommon/mintopo.cpp",
+      "gitBlobSha1": "9fb2cc21efdf3206a83545942b9eb68bafedd748",
+      "sha256": "d3dda21d307759c04a79f48abf2abcb17ad61d0cde611c3a9cc3a42d3e1dbd1f"
+    },
+    {
+      "path": "EndpointsCommon/mintopo.h",
+      "gitBlobSha1": "f0bae44d3274915a762c380852fd51ba4353d059",
+      "sha256": "88201fcf31f78e19dcea36d8d0d7831672cff74c8973d55c1531921b29dc5656"
+    },
+    {
+      "path": "EndpointsCommon/minwavert.cpp",
+      "gitBlobSha1": "c6b8e8c3cad83eb22d034f0f341318639f3f9445",
+      "sha256": "798de823e2de5609f63ee5b668366649583612887eeb1c8ad75064061ce5e7c2"
+    },
+    {
+      "path": "EndpointsCommon/minwavert.h",
+      "gitBlobSha1": "42cad965e3048a356dd3a73859e0e69949320ef9",
+      "sha256": "5d5c08f6d0e1bacdb799787b553153a30b5fac48ecd38955ff895ddcd414fe9d"
+    },
+    {
+      "path": "EndpointsCommon/minwavertstream.cpp",
+      "gitBlobSha1": "adea0c824c0830fd213fd2f7061160e7f111c556",
+      "sha256": "5c565c2f02dfa2a2fafa31b9acce0c0143724964656cd3ab95f3b57698043dd8"
+    },
+    {
+      "path": "EndpointsCommon/minwavertstream.h",
+      "gitBlobSha1": "4e9e882c041914d890e22b85c2fa61f2c8e99704",
+      "sha256": "e3558aab3705fa11c03c2388e20e9bfeeca24ba3d5285d5fae8f3e70ffddfddd"
+    },
+    {
+      "path": "EndpointsCommon/simple.h",
+      "gitBlobSha1": "a284acbc6e0c2719c658507cf3933626b9c0a0e2",
+      "sha256": "edb0aafc13640c218ca06a28be2c56fa2c16cd15ff7e94d1acf36bf71a566603"
+    },
+    {
+      "path": "EndpointsCommon/speakerhptopo.cpp",
+      "gitBlobSha1": "1cd1d97be1057ebe449677a6d5f2779beaa37abe",
+      "sha256": "f82a2326fa6a96c664de8a28d3322447b6269b77a0f63ca0ff2e4b1b040ffb69"
+    },
+    {
+      "path": "EndpointsCommon/speakerhptopo.h",
+      "gitBlobSha1": "9974859fefa795aa40071fcb342d24f165febaf6",
+      "sha256": "1d88d2a5425c7b50102a471eee7ec608abe0103901afd7b062c9d8e892012a7e"
+    },
+    {
+      "path": "EndpointsCommon/speakerhptoptable.h",
+      "gitBlobSha1": "936ec0b6e9c33547e990b3d7adeed415cf988331",
+      "sha256": "d8c32fb442551e35586e148ac6a7b1d9ce0fca9881a944efbe0025764588f2e4"
+    },
+    {
+      "path": "EndpointsCommon/speakerhpwavtable.h",
+      "gitBlobSha1": "e1cf15948c2cd0e501b50aec6491b0b2cdb40364",
+      "sha256": "d13cf9c088fb1b25e44bea0656100d2ee5597c8dd31c3344060c2912749bcac3"
+    },
+    {
+      "path": "EndpointsCommon/speakertopo.cpp",
+      "gitBlobSha1": "002b11747e9e995e4e16fcf89bdc17c293475a57",
+      "sha256": "2958d617fd98a1145051b1c0916d3f4aa8554f0ca6c4e2c00b22888accd538bb"
+    },
+    {
+      "path": "EndpointsCommon/speakertopo.h",
+      "gitBlobSha1": "1ea213740f172dd14521961cb2913c6b65ea0535",
+      "sha256": "01d4018cf85da28fcccac35d40f486936c22c0610bd7e227e31eafb5534500c8"
+    },
+    {
+      "path": "EndpointsCommon/speakertoptable.h",
+      "gitBlobSha1": "ea3890f7c6af69d3d83923cf8bc699173bbca34d",
+      "sha256": "20c629d1257709019d0503b7f1fa61cd62fd2335a836526c49b2faf23773f789"
+    },
+    {
+      "path": "EndpointsCommon/speakerwavtable.h",
+      "gitBlobSha1": "6fb058abc90ed261169ff94dbf24d64aa1f8cc1c",
+      "sha256": "064c8470af808765648f281d2c453208041dc9758f6888234fd428ed9c3d85ac"
+    },
+    {
+      "path": "SysVadShared.h",
+      "gitBlobSha1": "26cff9e284b91d531fee0e90329c148976a26eb5",
+      "sha256": "9d2eaad56cb5d98a6f0635ea5f5b0b2ae0ddf25e84a16569fa1359704aa26b89"
+    },
+    {
+      "path": "ToneGenerator.cpp",
+      "gitBlobSha1": "2ff7cbddb3ff8ca7a123dbbf74441f773322a813",
+      "sha256": "7825bf5c935a1922f22b9157b482782f12499a62f47584dafd2a2a1e578843fd"
+    },
+    {
+      "path": "ToneGenerator.h",
+      "gitBlobSha1": "e364ccd4908bc3b66eb6c5e32afcbd4bbbe3c025",
+      "sha256": "d4b8024f81607e0cb3e443adc44cdb9f5d4aa493b2a15f8dd34997d4c59b54fb"
+    },
+    {
+      "path": "UnittestData.h",
+      "gitBlobSha1": "e8a342372548a2de40e11d7db66f6019b8e737f9",
+      "sha256": "515b31207e922ffe59754f5e7cf9e18b307d5e1ef06c6c6c6ce98ec2f64af98d"
+    },
+    {
+      "path": "adapter.cpp",
+      "gitBlobSha1": "0f44c593f0e636b5cd17d00aa1054c64caae6d6d",
+      "sha256": "70fe4d371151b4799857cd85cc3a83a7db8719e244546d97baa4910c833a2602"
+    },
+    {
+      "path": "basetopo.cpp",
+      "gitBlobSha1": "1ceb414acd33c0506a753c7119fbcb883094eacf",
+      "sha256": "ad4f8d106f78317613301d958af79fcd223eb9ae65b9e3ada3f4c6e8707377dc"
+    },
+    {
+      "path": "basetopo.h",
+      "gitBlobSha1": "429c05eb326aad3b2a69120730d07fb068112b63",
+      "sha256": "7810a9187528033cb5798e605e19105e2b0a3eaf2b624f432b1849ca6d5a3e72"
+    },
+    {
+      "path": "common.cpp",
+      "gitBlobSha1": "1334411e5243d66c3154ca8d4cdbff952e9ed02a",
+      "sha256": "b32801ad8d3ace8e124783058a2ccb6be5cb8be5f5c4059558c28ef0b2e63bc7"
+    },
+    {
+      "path": "common.h",
+      "gitBlobSha1": "17e8ebca54798d4053ed2ad163e2d550479379a0",
+      "sha256": "8e4a1e8cf9cd5906559ead8f667743617dba844cf4d48f4a7bb857e27ffe17ff"
+    },
+    {
+      "path": "hw.cpp",
+      "gitBlobSha1": "1666e14650bc1445fecaf00f28368be0bbbd4163",
+      "sha256": "c3582eb9102f7554e2e12e70319cb7c4f00ac19710ddeeb58f8194b6993dcbd5"
+    },
+    {
+      "path": "hw.h",
+      "gitBlobSha1": "cdfe4f7588f6c676ab9b2bcec1bba47f46b1cab0",
+      "sha256": "b204e36448b364c713da3151dce34c62b7328eb50f1f9494e2564a569d71617b"
+    },
+    {
+      "path": "ihvprivatepropertyset.h",
+      "gitBlobSha1": "d36454c45321a1c1869464a738dd21335a2df614",
+      "sha256": "e967bb20affc6e43efe7ed84d87935fa9577c53d7514b00b7f48bdb925f55f62"
+    },
+    {
+      "path": "kshelper.cpp",
+      "gitBlobSha1": "d5213426b9642ddab8f3ce3ef228ca9910748e2e",
+      "sha256": "a6b2a95af22fd411bbe7b5988c5087a503c684dbc4e8faa32542d747c2c85cda"
+    },
+    {
+      "path": "kshelper.h",
+      "gitBlobSha1": "a8cc49566a14b5f928781f1094284fc2d0808d4c",
+      "sha256": "13472f133f00fb8acf5069dcb70c240218b0046d94df961c25570bd50f85373f"
+    },
+    {
+      "path": "savedata.cpp",
+      "gitBlobSha1": "39789f3b9386164e7faa471f4c267cf62a42377d",
+      "sha256": "0e251ea38b7f91b80f3da8b00042c0045f0fd05a3703e22ff19a1aa5f40e764d"
+    },
+    {
+      "path": "savedata.h",
+      "gitBlobSha1": "942210251cf00ddf83aa755c8f15049eca6e323e",
+      "sha256": "10de40b2f4e270148afd532b113eeccafec08d28aac102463a53c5ab04266b7d"
+    },
+    {
+      "path": "sysvad.h",
+      "gitBlobSha1": "a3cc555ce348dcd0af782bc35e92f426bc0b5011",
+      "sha256": "4e2304ca99e66f0e84b582995ef3205d6d16ecedae34cfc14bcbf1349bd01630"
+    }
+  ]
+}

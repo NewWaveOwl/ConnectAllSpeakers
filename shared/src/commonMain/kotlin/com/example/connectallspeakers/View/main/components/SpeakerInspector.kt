@@ -10,10 +10,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.example.connectallspeakers.ViewModels.main.MainAction
 import com.example.connectallspeakers.model.RoomSpeaker
 import com.example.connectallspeakers.model.audio.OutputAvailability
+import com.example.connectallspeakers.model.audio.AudioOutputRole
 import com.example.connectallspeakers.model.audio.SPEAKER_TEST_DURATION_MILLIS
 import com.example.connectallspeakers.model.SpeakerChannel
 import com.example.connectallspeakers.state.MainDialog
@@ -31,10 +33,11 @@ private val PanelPadding = 20.dp
  * @param onAction Screen intent callback.
  * @param modifier Parent width constraints.
  * @param referenceSpeakerId Zero-delay reference card in this room.
+ * @param testingSpeakerId Pending/active test card; its button switches to pause and cancels that test.
  */
 @Composable
 fun SpeakerInspector(speaker: RoomSpeaker?, hasSetup: Boolean, demoMode: Boolean, onAction: (MainAction) -> Unit, modifier: Modifier = Modifier,
-    referenceSpeakerId: String? = null) {
+    referenceSpeakerId: String? = null, testingSpeakerId: String? = null) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Column(Modifier.fillMaxWidth().heightIn(min = InspectorHeight).background(Color.White, RoundedCornerShape(PanelCorner))
             .padding(start = PanelPadding, top = PanelPadding, end = PanelPadding), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -50,6 +53,8 @@ fun SpeakerInspector(speaker: RoomSpeaker?, hasSetup: Boolean, demoMode: Boolean
                     speaker.isSample -> "Demo sample"
                     speaker.availability == OutputAvailability.Unavailable -> "Unavailable"
                     speaker.availability == OutputAvailability.Unknown -> "Availability unknown"
+                    speaker.output?.role == AudioOutputRole.AllConnectInput -> "Virtual input · cannot be a target"
+                    speaker.output?.role == AudioOutputRole.Unknown -> "Identity unknown · target disabled"
                     else -> "Available output"
                 }, color = if (speaker.availability == OutputAvailability.Unavailable) MaterialTheme.colorScheme.error else C.Plum)
                 Column(Modifier.height(76.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -68,8 +73,12 @@ fun SpeakerInspector(speaker: RoomSpeaker?, hasSetup: Boolean, demoMode: Boolean
                 }
                 WorkspaceButton(if (speaker.eq.enabled) "EQ · enabled" else "EQ · bypassed",
                     { onAction(MainAction.OpenDialog(MainDialog.SpeakerEq)) }, Modifier.fillMaxWidth())
-                WorkspaceButton("Test speaker (${SPEAKER_TEST_DURATION_MILLIS / 1000}s)", { onAction(MainAction.TestSpeaker) }, Modifier.fillMaxWidth(), Glyph.Play)
-                Text("Plays a ${SPEAKER_TEST_DURATION_MILLIS / 1000}-second tone using app volume, EQ and delay. Press Stop to end early.\nCanvas position does not change audio timing.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
+                val isTesting = speaker.id == testingSpeakerId
+                WorkspaceButton("Test speaker (${SPEAKER_TEST_DURATION_MILLIS / 1000}s)", { onAction(MainAction.TestSpeaker) },
+                    Modifier.fillMaxWidth().semantics { stateDescription = if (isTesting) "Testing; activate to stop" else "Stopped; activate to play a test" },
+                    if (isTesting) Glyph.Pause else Glyph.Play,
+                    enabled = isTesting || speaker.isSample || speaker.output?.role == AudioOutputRole.PlaybackTarget)
+                Text("Plays a ${SPEAKER_TEST_DURATION_MILLIS / 1000}-second tone using app volume, EQ and delay. Press this button again to stop early.\nCanvas position does not change audio timing.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
                 speaker.output?.let { output ->
                     Text("Windows: ${output.displayName}\n${output.type.label()}${if (output.isDefault) " · Default output" else ""}",
                         color = C.Muted, style = MaterialTheme.typography.bodySmall)
@@ -81,7 +90,7 @@ fun SpeakerInspector(speaker: RoomSpeaker?, hasSetup: Boolean, demoMode: Boolean
             Text("Speaker tray", style = MaterialTheme.typography.titleMedium)
             Text(if (demoMode) "Add a sample to this room layout." else "Choose an available Windows output.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
             WorkspaceButton("Add speaker", { onAction(MainAction.OpenDialog(MainDialog.AddSpeaker)) }, Modifier.fillMaxWidth(), Glyph.Add, enabled = hasSetup)
-            Text(if (demoMode) "Demo — sample speakers" else "WAV / MP3 playback · up to two outputs", color = C.Muted, style = MaterialTheme.typography.labelSmall)
+            Text(if (demoMode) "Demo — sample speakers" else "Physical targets · up to two outputs", color = C.Muted, style = MaterialTheme.typography.labelSmall)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Demo mode", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                 Switch(demoMode, { onAction(MainAction.SetDemoMode(it)) },

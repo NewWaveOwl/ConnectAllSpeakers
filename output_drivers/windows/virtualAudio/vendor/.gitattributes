@@ -1,0 +1,2 @@
+# Preserve the exact upstream bytes verified by upstream.json, including CRLF.
+sysvad/** -text -whitespace

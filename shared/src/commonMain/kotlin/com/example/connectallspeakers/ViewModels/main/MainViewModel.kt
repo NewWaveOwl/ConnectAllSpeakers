@@ -40,6 +40,8 @@ import com.example.connectallspeakers.state.ProfileStorageStatus
 import kotlinx.coroutines.CancellationException
 import com.example.connectallspeakers.model.audio.EqBand
 import com.example.connectallspeakers.model.audio.SpeakerEq
+import com.example.connectallspeakers.model.audio.AudioOutputRole
+import com.example.connectallspeakers.model.audio.LIVE_SAMPLE_RATE
 
 /** Owns session edits and routes explicit playback requests to the platform controller.
  * @param initialState Optional deterministic session used by behavior tests.
@@ -58,6 +60,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(initialState.copy(outputs = outputRepository?.outputs?.value ?: initialState.outputs,
         playback = playbackController?.playback?.value ?: initialState.playback,
+        virtualInputSupported = playbackController?.supportsVirtualInput == true,
         profileStorage = if (profileRepository == null) ProfileStorageStatus.SessionOnly else ProfileStorageStatus.Loading))
     /** Read-only session state; immutable copies are emitted for every edit. */
     val state: StateFlow<MainUiState> = mutableState.asStateFlow()
@@ -171,10 +174,21 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             ) }
             MainAction.SaveSetup -> saveSetup()
             MainAction.TestSpeaker -> testSpeaker()
-            MainAction.ChooseAudioFile -> if (!state.value.demoMode && playbackController != null) chooseAudioFile()
-            MainAction.Play -> play()
+            MainAction.ChooseAudioFile -> if (!state.value.demoMode && !state.value.liveInputMode && playbackController != null) chooseAudioFile()
+            MainAction.Play -> if (!state.value.liveInputMode) play()
             MainAction.Pause -> playbackController?.pause()
             MainAction.Stop -> stopPlayback()
+            is MainAction.SetLiveInputMode -> if (state.value.liveInputMode != action.enabled) {
+                stopPlayback()
+                mutableState.update { it.copy(liveInputMode = action.enabled, feedback = null) }
+            }
+            is MainAction.SelectVirtualInput -> if (state.value.outputs.devices.any {
+                it.endpointId == action.endpointId && it.role == AudioOutputRole.AllConnectInput
+            }) {
+                stopPlayback()
+                mutableState.update { it.copy(virtualInputId = action.endpointId) }
+            }
+            MainAction.StartVirtualInput -> startVirtualInput()
             is MainAction.OpenDialog -> mutableState.update { it.copy(
                 dialog = action.dialog, dialogName = if (action.dialog == MainDialog.RenameSetup) it.selectedSetup?.name.orEmpty() else "",
                 dialogError = null,
@@ -196,7 +210,8 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             routes(before).map { it.endpointId to it.delayMillis } != routes(after).map { it.endpointId to it.delayMillis }) {
             stopPlayback()
             if (action is MainAction.SetDelay || action is MainAction.SelectCalibrationReference || action is MainAction.SetDriftCorrection || action == MainAction.ResetDelays) {
-                mutableState.update { it.copy(feedback = "Timing settings changed. Press Play to restart; calibration cues use gain, EQ and manual delay without drift correction.") }
+                mutableState.update { it.copy(feedback = if (it.liveInputMode) "Timing settings changed. Press Start live input to restart. The file-only drift switch does not control live rate correction."
+                    else "Timing settings changed. Press Play to restart; calibration cues use gain, EQ and manual delay without drift correction.") }
             }
         } else if (action is MainAction.SetVolume || action is MainAction.AssignChannel || action is MainAction.SetEqEnabled ||
             action is MainAction.SetEqBand || action == MainAction.ResetEq) {
@@ -229,7 +244,8 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         val selected = state.value.selectedSpeaker ?: return
         try {
             val next = transform(selected.eq)
-            if (!state.value.demoMode) state.value.playback.source?.sampleRate?.let { next.validateForSampleRate(it) }
+            if (!state.value.demoMode) (if (state.value.liveInputMode) LIVE_SAMPLE_RATE else state.value.playback.source?.sampleRate)
+                ?.let { next.validateForSampleRate(it) }
             editSelected { it.copy(eq = next) }
             mutableState.update { it.copy(dialogError = null, feedback = null) }
         } catch (invalid: IllegalArgumentException) {
@@ -300,7 +316,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
     private fun addOutput(endpointId: String) {
         val current = state.value
         if (current.demoMode || current.outputs.status != AudioOutputStatus.Ready) return
-        val output = current.outputs.devices.find { it.endpointId == endpointId && it.availability == OutputAvailability.Active } ?: return
+        val output = current.outputs.devices.find { it.endpointId == endpointId && it.availability == OutputAvailability.Active && it.role == AudioOutputRole.PlaybackTarget } ?: return
         val room = current.selectedSetup ?: return
         val existing = room.speakers.find { it.output?.endpointId == endpointId }
         if (existing != null) {
@@ -492,6 +508,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             calibration && speakers.size != 2 -> "Add two real outputs to compare calibration cues."
             !calibration && current.selectedSetup?.driftCorrectionEnabled == true && speakers.size != 2 -> "Experimental drift correction needs two real outputs. Add another output or disable correction."
             speakers.any { it.isSample || it.availability != OutputAvailability.Active } -> "Every room output must be available before playback."
+            speakers.any { it.output?.role != AudioOutputRole.PlaybackTarget } -> "Virtual inputs and unidentified devices cannot be playback targets."
             current.outputs.status != AudioOutputStatus.Ready -> "Refresh outputs successfully before playback."
             (calibration || current.selectedSetup?.driftCorrectionEnabled == true) && current.selectedSetup?.calibrationReference?.delayMillis != 0 -> "The calibration reference must have zero delay."
             else -> null
@@ -512,9 +529,36 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         playbackController?.stop()
     }
 
-    /** Requests a real-device test; the engine lifecycle owns the card highlight until completion. */
+    /** Starts live input only after exact owned-source/physical-target checks; never substitutes a device. */
+    private fun startVirtualInput() {
+        val current = state.value
+        val speakers = current.selectedSetup?.speakers.orEmpty()
+        val error = when {
+            !current.liveInputMode || current.demoMode -> "Select Virtual input with Demo mode off."
+            playbackController?.supportsVirtualInput != true -> "Virtual input is available in the Windows desktop app only."
+            current.outputs.status != AudioOutputStatus.Ready -> "Refresh outputs successfully before starting live input."
+            current.outputs.devices.none { it.endpointId == current.virtualInputId && it.role == AudioOutputRole.AllConnectInput && it.availability == OutputAvailability.Active } -> "Select an available AllConnect virtual input. The driver must be installed separately."
+            speakers.size !in 1..MAX_PLAYBACK_OUTPUTS -> "Add one or two physical outputs to this room."
+            speakers.any { it.output?.role != AudioOutputRole.PlaybackTarget || it.availability != OutputAvailability.Active } -> "Every target must be an available physical playback output."
+            else -> null
+        }
+        if (error != null) { mutableState.update { it.copy(feedback = error) }; return }
+        try {
+            val selectedRoutes = routes(current)
+            selectedRoutes.forEach { it.eq.validateForSampleRate(LIVE_SAMPLE_RATE) }
+            requestedTestEndpointId = null
+            playbackController?.startVirtualInput(requireNotNull(current.virtualInputId), selectedRoutes)
+        } catch (invalid: IllegalArgumentException) { mutableState.update { it.copy(feedback = invalid.message) } }
+    }
+
+    /** Toggles the selected real-device test; stopping also cancels pending native startup. */
     private fun testSpeaker() {
         val selected = state.value.selectedSpeaker ?: return
+        if (state.value.testingSpeakerId == selected.id) {
+            stopPlayback()
+            mutableState.update { it.copy(feedback = "Speaker test stopped.") }
+            return
+        }
         val output = selected.output
         if (state.value.demoMode || output == null || playbackController == null) {
             mutableState.update { it.copy(feedback = "Demo speakers cannot play audio. Select a real Windows output to test.") }
@@ -524,10 +568,13 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             mutableState.update { it.copy(feedback = "This output is unavailable. Reconnect it and refresh before testing.") }
             return
         }
+        if (output.role != AudioOutputRole.PlaybackTarget) {
+            mutableState.update { it.copy(feedback = "Virtual inputs cannot be speaker-test targets.") }; return
+        }
         val id = selected.id
         requestedTestEndpointId = output.endpointId
         playbackController.testSpeaker(PlaybackRoute(output.endpointId, selected.channel, selected.volume, selected.delayMillis, selected.eq))
         mutableState.update { it.copy(testingSpeakerId = id,
-            feedback = "${SPEAKER_TEST_DURATION_MILLIS / 1000}-second test requested for ${selected.name}. App volume: ${selected.volume}%. Press Stop to end early.") }
+            feedback = "${SPEAKER_TEST_DURATION_MILLIS / 1000}-second test requested for ${selected.name}. App volume: ${selected.volume}%. Press the test button again to stop early.") }
     }
 }

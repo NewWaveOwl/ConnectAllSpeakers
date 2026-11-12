@@ -40,6 +40,7 @@ object Glyph {
     const val Delete = "\uE872"
     const val Save = "\uE161"
     const val Play = "\uE037"
+    const val Pause = "\uE034"
     const val Expand = "\uE5CF"
     const val Headphones = "\uE310"
     const val Drag = "\uE945"

@@ -47,6 +47,7 @@ data class PlaybackRoute(val endpointId: String, val channel: SpeakerChannel, va
  * @property timingSequence Increases for every measurement packet, including unchanged paused values.
  * @property isCalibration Whether a generated manual-calibration signal is playing.
  * @property routeUpdateError Rejected live-setting update; previous safe routes remain active.
+ * @property liveInput Continuous virtual-source diagnostics, absent for file/test playback.
  */
 data class PlaybackSnapshot(
     val phase: PlaybackPhase = PlaybackPhase.Unsupported,
@@ -59,4 +60,5 @@ data class PlaybackSnapshot(
     val timingSequence: Long = 0,
     val isCalibration: Boolean = false,
     val routeUpdateError: String? = null,
+    val liveInput: LiveInputStatus? = null,
 )

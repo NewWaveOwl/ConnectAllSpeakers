@@ -12,6 +12,14 @@ Playback has been reported working on a Windows PC. Drift
 correction is validated with synthetic clocks/PCM; user acoustic calibration,
 sustained hardware results and production synchronization remain pending.
 
+**Virtual output prototype:** app-side live-input controls, exact-endpoint
+loopback, bounded fan-out and loop prevention are implemented in source. The
+[separate native driver project](output_drivers/windows/virtualAudio/README.md) is
+builds on this PC with zero warnings/errors, passes universal INF/API
+validation and produces an unsigned catalog package. Signing, installation,
+endpoint visibility and actual cross-application transfer remain unverified;
+issue #11 remains open. See the [architecture, limits and your test checklist](docs/WindowsVirtualOutput.md).
+
 ## What works now
 
 - Discover active Windows playback outputs, including Bluetooth, USB, built-in,
@@ -27,7 +35,8 @@ sustained hardware results and production synchronization remain pending.
   that source channel to the output; Mono mixes both. App gain does not change
   Windows master volume.
 - Test the selected real output with a ten-second tone. **Play** uses the selected
-  file; **Test speaker** uses the built-in tone.
+  file; **Test speaker** uses the built-in tone. Its play icon becomes a pause
+  icon while testing; press the same button again to stop early.
 - Choose a zero-delay reference, delay the faster output by 0–500 ms, and compare
   repeatable calibration cues. Delay changes stop playback and apply on the next
   Play. Pause/resume retains the prepared delay; Reset positions preserves it.
@@ -89,17 +98,24 @@ From the repository root in PowerShell:
    output. Start at a comfortable Windows volume and a low app volume.
 3. Select **Choose audio**, choose a WAV or MP3, then press **Play**.
 
-The app bundles its Windows interop and MP3 decoder libraries. No external mixer,
-encoder or virtual audio driver is required at runtime. Python is only optional
+The app bundles its Windows interop and MP3 decoder libraries. Local-file playback
+requires no external mixer, encoder or virtual audio driver. The optional Virtual
+input prototype requires its separately built/reviewed driver in an isolated test
+environment; its first INF supports explicit app output selection, not becoming
+the Windows system default. Python is only optional
 for generating the [manual test signals](docs/WindowsPlayback.md#manual-checks--user-operates-the-hardware).
 
 ## Validation
 
 Latest recorded checks on November 2, 2026: desktop compilation, Android debug
-build and Windows app-image packaging passed; **59 shared JVM tests and 116 desktop
+build and Windows app-image packaging passed; **66 shared JVM tests and 135 desktop
 tests passed**, with zero failures, errors or skips. These automated checks use
 offline fixtures and fake playback outputs. Manual playback was reported
 successful; detailed device/driver and timing measurements are not recorded.
+Virtual input additionally passed a 20-minute synthetic two-output clock/buffer
+simulation and offscreen desktop/narrow-layout checks. The separate native
+driver build and unsigned packaging passed on November 2; installation and
+real cross-application audio transfer remain unverified.
 
 ```powershell
 .\gradlew.bat :desktopApp:compileKotlin :shared:jvmTest :desktopApp:test :androidApp:assembleDebug
@@ -118,7 +134,9 @@ remain separate verification work.
   delay alone does not correct drift or prove synchronized playback.
 - Configuration settings and further processing/quality improvements.
 - More than two playback outputs, surround and additional source formats.
-- System-wide Windows audio input and the planned [virtual output](docs/WindowsVirtualOutput.md).
+- Build and validate the [virtual output prototype](docs/WindowsVirtualOutput.md)
+  in a user-operated driver lab, including real PCM transfer and install/remove.
+  System-default selection, production signing and distribution remain future work.
 - Android companion/playback capability work. The Android launcher builds, but
   native discovery/playback is Windows-only. The retained web scaffold has no
   audio-support commitment; Linux is outside the current scope.

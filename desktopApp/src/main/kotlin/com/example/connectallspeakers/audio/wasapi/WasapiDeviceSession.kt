@@ -3,6 +3,8 @@ package com.example.connectallspeakers.audio.wasapi
 import com.example.connectallspeakers.audio.windows.checkAudioResult
 import com.example.connectallspeakers.audio.windows.comCall
 import com.example.connectallspeakers.audio.windows.releaseCom
+import com.example.connectallspeakers.audio.windows.AllConnectEndpointIdentity
+import com.example.connectallspeakers.model.audio.AudioOutputRole
 import com.sun.jna.Memory
 import com.sun.jna.Pointer
 import com.sun.jna.WString
@@ -48,6 +50,9 @@ internal class WasapiDeviceSession : PlaybackDeviceSession {
         var render: Pointer? = null
         var clock: WasapiClock? = null
         try {
+            check(AllConnectEndpointIdentity.role(device) == AudioOutputRole.PlaybackTarget) {
+                "An AllConnect input or unverified endpoint cannot be used as a physical playback target."
+            }
             val state = IntByReference()
             checkAudioResult("Check playback availability", comCall(device, 6, state))
             check(state.value and 1 != 0) { "The selected output is unavailable." }

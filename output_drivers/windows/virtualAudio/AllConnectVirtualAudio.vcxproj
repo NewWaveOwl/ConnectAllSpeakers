@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{206FB8A9-00ED-4BB4-86E7-648A5C1A283D}</ProjectGuid>
+    <RootNamespace>AllConnectVirtualAudio</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Configuration Condition="'$(Configuration)'==''">Debug</Configuration>
+    <Platform Condition="'$(Platform)'==''">x64</Platform>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>KMDF</DriverType>
+    <DriverTargetPlatform>Universal</DriverTargetPlatform>
+    <TargetVersion>Windows10</TargetVersion>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <UseDebugLibraries Condition="'$(Configuration)'=='Debug'">true</UseDebugLibraries>
+    <UseDebugLibraries Condition="'$(Configuration)'=='Release'">false</UseDebugLibraries>
+    <KmdfVersion>1.33</KmdfVersion>
+    <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
+    <TargetName>AllConnectVirtualAudio</TargetName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(MSBuildThisFileDirectory)build\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildThisFileDirectory)build\obj\$(Platform)\$(Configuration)\</IntDir>
+    <!-- Signing/deployment are deliberately separate, user-operated lab steps. -->
+    <SignMode>Off</SignMode>
+    <EnableInf2Cat>false</EnableInf2Cat>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <PreprocessorDefinitions>_WIN32;UNICODE;_UNICODE;PC_IMPLEMENTATION;_USE_WAVERT_;_NEW_DELETE_OPERATORS_;DEBUG_LEVEL=DEBUGLVL_TERSE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;$(ProjectDir)vendor\sysvad;$(ProjectDir)vendor\sysvad\EndpointsCommon;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExceptionHandling>false</ExceptionHandling>
+    </ClCompile>
+    <Link><AdditionalDependencies>portcls.lib;stdunk.lib;libcntpr.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="build\sources\adapter.cpp" />
+    <ClCompile Include="vendor\sysvad\basetopo.cpp" />
+    <ClCompile Include="vendor\sysvad\common.cpp" />
+    <ClCompile Include="vendor\sysvad\hw.cpp" />
+    <ClCompile Include="vendor\sysvad\kshelper.cpp" />
+    <ClCompile Include="vendor\sysvad\savedata.cpp" />
+    <ClCompile Include="vendor\sysvad\ToneGenerator.cpp" />
+    <ClCompile Include="vendor\sysvad\EndpointsCommon\AudioModuleHelper.cpp" />
+    <ClCompile Include="build\sources\MiniportAudioEngineNode.cpp" />
+    <ClCompile Include="vendor\sysvad\EndpointsCommon\MiniportStreamAudioEngineNode.cpp" />
+    <ClCompile Include="vendor\sysvad\EndpointsCommon\mintopo.cpp" />
+    <ClCompile Include="vendor\sysvad\EndpointsCommon\minwavert.cpp" />
+    <ClCompile Include="vendor\sysvad\EndpointsCommon\minwavertstream.cpp" />
+    <ClCompile Include="vendor\sysvad\EndpointsCommon\NewDelete.cpp" />
+    <Inf Include="AllConnectVirtualAudio.inx" />
+  </ItemGroup>
+  <Target Name="CheckPreparedSources" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(ProjectDir)build\sources\adapter.cpp') Or !Exists('$(ProjectDir)build\sources\MiniportAudioEngineNode.cpp')" Text="Run Build.ps1 -PrepareOnly first (or use Build.ps1 to build)." />
+  </Target>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

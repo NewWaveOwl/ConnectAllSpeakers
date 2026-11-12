@@ -1,0 +1,95 @@
+; Prototype x64 render endpoint. Source installation is a separate user-operated lab step.
+[Version]
+Signature="$Windows NT$"
+Class=MEDIA
+ClassGUID={4d36e96c-e325-11ce-bfc1-08002be10318}
+Provider=%Provider%
+DriverVer=11/02/2026,0.1.0.0
+CatalogFile=AllConnectVirtualAudio.cat
+PnpLockDown=1
+
+[Manufacturer]
+%Provider%=AllConnect,NTamd64.10.0...22621
+[AllConnect.NTamd64.10.0...22621]
+%DeviceName%=AllConnectDevice,ROOT\AllConnectVirtualAudio
+[SourceDisksNames]
+1=%DiskName%,,,
+[SourceDisksFiles]
+AllConnectVirtualAudio.sys=1
+[DestinationDirs]
+AllConnectCopy=13
+[AllConnectCopy]
+AllConnectVirtualAudio.sys
+
+[AllConnectDevice.NT]
+Include=ks.inf,wdmaudio.inf
+Needs=KS.Registration,WDMAUDIO.Registration
+CopyFiles=AllConnectCopy
+AddReg=AllConnectDevice.AddReg
+[AllConnectDevice.AddReg]
+HKR,,AssociatedFilters,,"wdmaud"
+HKR,,Driver,,AllConnectVirtualAudio.sys
+HKR,Drivers,SubClasses,,"wave,mixer"
+HKR,Drivers\wave\wdmaud.drv,Driver,,wdmaud.drv
+HKR,Drivers\wave\wdmaud.drv,Description,,%DeviceName%
+HKR,Drivers\mixer\wdmaud.drv,Driver,,wdmaud.drv
+HKR,Drivers\mixer\wdmaud.drv,Description,,%DeviceName%
+HKR,MediaCategories\%AllConnectEndpointNameGuid%,Name,,%EndpointName%
+
+[AllConnectDevice.NT.Interfaces]
+AddInterface=%KSCATEGORY_AUDIO%,WaveAllConnect,AllConnectWave
+AddInterface=%KSCATEGORY_RENDER%,WaveAllConnect,AllConnectWave
+AddInterface=%KSCATEGORY_REALTIME%,WaveAllConnect,AllConnectWave
+AddInterface=%KSCATEGORY_AUDIO%,TopologyAllConnect,AllConnectTopology
+AddInterface=%KSCATEGORY_TOPOLOGY%,TopologyAllConnect,AllConnectTopology
+[AllConnectWave]
+AddReg=AllConnectWave.AddReg
+[AllConnectWave.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%EndpointName%
+[AllConnectTopology]
+AddReg=AllConnectTopology.AddReg
+[AllConnectTopology.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%EndpointName%
+HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
+HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,1
+; Exact ownership marker consumed by AllConnectEndpointIdentity. Never infer from FriendlyName.
+HKR,EP\0,"{A9CB07B6-15EA-4D40-96A6-0D7418CE92AD},1",0x00010001,1
+; Prototype supports explicit per-application routing, not selection as a system default.
+; Prevent Windows from silently selecting this sink before the forwarding app is running.
+HKR,EP\0,%PKEY_AudioDevice_NeverSetAsDefaultEndpoint%,0x00010001,0x00000307
+
+[AllConnectDevice.NT.Services]
+AddService=AllConnectVirtualAudio,0x00000002,AllConnectService
+[AllConnectService]
+DisplayName=%DeviceName%
+ServiceType=1
+StartType=3
+ErrorControl=1
+ServiceBinary=%13%\AllConnectVirtualAudio.sys
+[AllConnectDevice.NT.HW]
+AddReg=AllConnectHardware
+[AllConnectHardware]
+HKR,,DeviceType,0x00010001,0x1d
+HKR,,Security,,"D:P(A;;GA;;;SY)(A;;GRGWGX;;;BA)(A;;GRGWGX;;;WD)(A;;GRGWGX;;;RC)"
+[AllConnectDevice.NT.Wdf]
+KmdfService=AllConnectVirtualAudio,AllConnectWdf
+[AllConnectWdf]
+KmdfLibraryVersion=$KMDFVERSION$
+
+[Strings]
+Provider="AllConnect"
+DeviceName="AllConnect Virtual Audio (Prototype)"
+EndpointName="AllConnect Speakers"
+AllConnectEndpointNameGuid="{1F308A3A-61C0-4B57-B72F-62EB9D63DF49}"
+DiskName="AllConnect Virtual Audio Prototype"
+Proxy.CLSID="{17CCA71B-ECD7-11D0-B908-00A0C9223196}"
+KSCATEGORY_AUDIO="{6994AD04-93EF-11D0-A3CC-00A0C9223196}"
+KSCATEGORY_RENDER="{65E8773E-8F56-11D0-A3B9-00A0C9223196}"
+KSCATEGORY_REALTIME="{EB115FFC-10C8-4964-831D-6DCB02E6F23F}"
+KSCATEGORY_TOPOLOGY="{DDA54A40-1E4C-11D1-A050-405705C10000}"
+KSNODETYPE_ANY="{00000000-0000-0000-0000-000000000000}"
+PKEY_AudioEndpoint_Association="{1DA5D803-D492-4EDD-8C23-E0C0FFEE7F0E},2"
+PKEY_AudioEndpoint_Supports_EventDriven_Mode="{1DA5D803-D492-4EDD-8C23-E0C0FFEE7F0E},7"
+PKEY_AudioDevice_NeverSetAsDefaultEndpoint="{F3E80BEF-1723-4FF2-BCC4-7F83DC5E46D4},3"

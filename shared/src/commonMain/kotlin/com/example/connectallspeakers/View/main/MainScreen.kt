@@ -59,13 +59,13 @@ fun MainScreen(state: MainUiState, onAction: (MainAction) -> Unit, modifier: Mod
                 Row(Modifier.fillMaxWidth().padding(ScreenPadding), horizontalArrangement = Arrangement.spacedBy(ScreenPadding)) {
                     RoomColumn(state, onAction, Modifier.weight(1f), canvasHeight)
                     SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, state.demoMode, onAction, Modifier.width(InspectorWidth),
-                        state.selectedSetup?.calibrationReference?.id)
+                        state.selectedSetup?.calibrationReference?.id, testingSpeakerId = state.testingSpeakerId)
                 }
             } else {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     RoomColumn(state, onAction, Modifier.fillMaxWidth(), canvasHeight)
                     SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, state.demoMode, onAction, Modifier.fillMaxWidth(),
-                        state.selectedSetup?.calibrationReference?.id)
+                        state.selectedSetup?.calibrationReference?.id, testingSpeakerId = state.testingSpeakerId)
                 }
             }
         }
@@ -159,7 +159,9 @@ private fun RoomColumn(state: MainUiState, onAction: (MainAction) -> Unit,
                         enabled = !state.savingProfiles && state.profileStorage != ProfileStorageStatus.LoadFailed)
                 }
             }
-            PlaybackControls(state.playback, state.demoMode, onAction)
+            AudioSourceControls(state, onAction)
+            if (state.liveInputMode) VirtualInputControls(state, onAction)
+            else PlaybackControls(state.playback, state.demoMode, onAction)
             CalibrationPanel(state, onAction)
             RoomCanvas(room, state.testingSpeakerId, onAction, Modifier.fillMaxWidth().height(canvasHeight))
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).horizontalScroll(rememberScrollState()),
