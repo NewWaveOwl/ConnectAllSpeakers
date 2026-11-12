@@ -9,7 +9,7 @@ const val LIVE_CHANNELS = 2
 enum class LiveInputPhase { Buffering, Forwarding, Idle }
 
 /** Copied live diagnostics, excluding PCM and native resources.
- * @property endpointId Exact owned virtual endpoint, never the Windows default alias.
+ * @property endpointId Exact source identity: owned virtual endpoint or session-only process/creation identity; never a default alias.
  * @property phase Buffering/forwarding/idle state of the explicit live session.
  * @property bufferedFrames Retained source frames, bounded to two seconds.
  * @property inputFrames Accepted frames in the current input epoch.

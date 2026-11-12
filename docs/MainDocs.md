@@ -45,6 +45,15 @@ remain planned. See [FrontendPrototype](FrontendPrototype.md),
 and [ClockDriftCorrection](ClockDriftCorrection.md)
 for scope, limits and user-operated measurement/checklists.
 
+Group Sound now implements the recommended Listening lounge as a distinct shared
+Compose workspace, with immutable transient group preferences owned by the existing
+MainViewModel and a single audio controller. Complete stereo routing preserves
+both channels through independent EQ histories in file/adaptive/live rendering;
+mono destinations average L/R. One/two-output validation, per-device volume/mute,
+manual delay and explicit file/live transport are implemented. Group settings,
+process identities and capture intent never enter saved room profiles. Hardware
+and acoustic acceptance remain pending; see [GroupSound](GroupSound.md).
+
 Selected playback approach: [MainDesign — direct Windows playback](MainDesign.md).
 Unaccepted system-audio candidate: [AllConnect virtual Windows output](WindowsVirtualOutput.md).
 

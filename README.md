@@ -20,6 +20,12 @@ validation and produces an unsigned catalog package. Signing, installation,
 endpoint visibility and actual cross-application transfer remain unverified;
 issue #11 remains open. See the [architecture, limits and your test checklist](docs/WindowsVirtualOutput.md).
 
+**Group Sound:** a separate Listening lounge shares the complete stereo mix
+with one or two selected physical outputs, with independent volume/mute and
+manual delay. File, selected-app and optional virtual-input sources reuse the
+same engine. Group preferences are session-only; measured acoustic/hardware
+acceptance remains pending. See [usage, checks and limits](docs/GroupSound.md).
+
 ## What works now
 
 - Discover active Windows playback outputs, including Bluetooth, USB, built-in,
@@ -49,6 +55,9 @@ issue #11 remains open. See the [architecture, limits and your test checklist](d
   stops the session. It is **off by default**; cues/tests use gain, EQ and manual
   delay without drift correction.
   See [method, limits and twenty-minute user checks](docs/ClockDriftCorrection.md).
+- Switch between Room setup and Group Sound without starting audio; group
+  outputs preserve full stereo (mono destinations average L/R), with independent
+  level/mute and a ten-second device test.
 - Create, rename and delete setups; rename speakers; drag cards; use snap-to-grid,
   zoom and Reset positions. Moving cards changes the layout, not audio timing.
 - Adjust three independent bell EQ bands per speaker, with frequency/gain/Q,
@@ -106,6 +115,15 @@ the Windows system default. Python is only optional
 for generating the [manual test signals](docs/WindowsPlayback.md#manual-checks--user-operates-the-hardware).
 
 ## Validation
+
+November 12 checks: shared UI and desktop production/test sources compile with
+an independent invocation of the installed Kotlin/Compose compiler; **218 JUnit
+tests passed**. Offscreen desktop/narrow layouts were checked. The user-mode
+process-capture DLL builds with MSBuild. Normal Gradle validation is blocked before
+compilation by this execution environment's loopback restriction. Android assembly,
+packaging and hardware acceptance require normal-session checks. See
+[Group Sound verification](docs/GroupSound.md#verification-and-remaining-acceptance).
+
 
 Latest recorded checks on November 2, 2026: desktop compilation, Android debug
 build and Windows app-image packaging passed; **66 shared JVM tests and 135 desktop

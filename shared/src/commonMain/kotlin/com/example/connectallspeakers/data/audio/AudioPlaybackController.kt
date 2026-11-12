@@ -1,11 +1,21 @@
 package com.example.connectallspeakers.data.audio
 
+import com.example.connectallspeakers.model.audio.CaptureApp
+
 import com.example.connectallspeakers.model.audio.PlaybackRoute
 import com.example.connectallspeakers.model.audio.PlaybackSnapshot
 import kotlinx.coroutines.flow.StateFlow
 
 /** Platform-neutral file/live playback operations. The platform app owns native lifetime. */
 interface AudioPlaybackController {
+    /** Whether this platform implements selected-process capture; unsupported Windows versions fail explicitly. */
+    val supportsAppCapture: Boolean get() = false
+    /** Lists session-only app identities off the UI thread; does not open a capture stream. */
+    suspend fun captureApps(): List<CaptureApp> = emptyList()
+    /** Explicitly captures only the selected process tree; never changes the app's original output. */
+    fun startAppCapture(app: CaptureApp, routes: List<PlaybackRoute>) {
+        throw UnsupportedOperationException("Selected app capture is unavailable on this platform.")
+    }
     /** True only for a platform assembly implementing actual owned-endpoint live capture. */
     val supportsVirtualInput: Boolean get() = false
     /** Current immutable lifecycle, source and failure state. */

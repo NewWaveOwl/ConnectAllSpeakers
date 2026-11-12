@@ -10,11 +10,12 @@ import com.sun.jna.platform.win32.Guid
 import com.sun.jna.platform.win32.Ole32
 import com.sun.jna.ptr.*
 
-/** Exact-owned-render-endpoint loopback. Construct/use/close only on the audio owner's MTA worker.
+/** Explicit endpoint/process loopback. Construct/use/close only on the audio owner's MTA worker.
  * No default endpoint, microphone, recording file or external mixer is used.
  * @param endpointId Explicit driver-identified AllConnect input.
+ * @param processApp Optional selected process identity; bypasses endpoint discovery using process-loopback activation.
  */
-internal class WasapiLoopbackCapture(endpointId: String) : LiveCaptureSource {
+internal class WasapiLoopbackCapture(endpointId: String, processApp: CaptureApp? = null) : LiveCaptureSource {
     private var initialized = false
     private var enumerator: Pointer? = null
     private var device: Pointer? = null
@@ -41,35 +42,50 @@ internal class WasapiLoopbackCapture(endpointId: String) : LiveCaptureSource {
             checkAudioResult("Initialize virtual input COM", Ole32.INSTANCE.CoInitializeEx(null, 0).toInt())
             initialized = true
             val result = PointerByReference()
-            checkAudioResult("Create virtual input enumerator", Ole32.INSTANCE.CoCreateInstance(
-                Guid.CLSID("{BCDE0395-E52F-467C-8E3D-C4579291692E}"), null, 1,
-                Guid.IID("{A95664D2-9614-4F35-A746-DE8DB63617E6}"), result).toInt())
-            enumerator = checkNotNull(result.value)
-            checkAudioResult("Find virtual input", comCall(enumerator!!, 5, WString(endpointId), result))
-            device = checkNotNull(result.value)
-            check(AllConnectEndpointIdentity.role(device!!) == AudioOutputRole.AllConnectInput) { "The selected input is not an identified AllConnect virtual endpoint." }
-            val state = IntByReference()
-            checkAudioResult("Read virtual input state", comCall(device!!, 6, state))
-            check(state.value and 1 != 0) { "AllConnect virtual input is unavailable." }
-            val directionIid = Guid.GUID("{1BE09788-6894-4089-8586-9A2A6C265AC5}").also { it.write() }
-            checkAudioResult("Read virtual input direction", comCall(device!!, 0, directionIid.pointer, result))
-            val direction = checkNotNull(result.value)
-            try { checkAudioResult("Check virtual input direction", comCall(direction, 3, state)); check(state.value == 0) { "Only our render endpoint can supply virtual input." } }
-            finally { releaseCom(direction) }
-            val iid = Guid.GUID("{1CB9AD4C-DBFA-4C32-B178-C2F568A703B2}").also { it.write() }
-            checkAudioResult("Activate virtual input", comCall(device!!, 3, iid.pointer, 23, null, result))
-            client = checkNotNull(result.value)
-            checkAudioResult("Read virtual input format", comCall(client!!, 8, result))
-            val format = checkNotNull(result.value)
-            try {
-                val bytes = format.getByteArray(0, 18)
-                val extensionSize = format.getShort(16).toInt() and 65535
-                require(extensionSize <= 64) { "Unsupported virtual input format extension." }
-                val complete = if (extensionSize == 0) bytes else format.getByteArray(0, 18 + extensionSize)
-                floatFormat = LiveCaptureFormat.parse(complete)
-                checkAudioResult("Initialize owned endpoint loopback", comCall(client!!, 3, 0, 0x00020000,
-                    1_000_000L, 0L, format, null)) // Shared, LOOPBACK, 100 ms; exact negotiated mix format.
-            } finally { Ole32.INSTANCE.CoTaskMemFree(format) }
+            if (processApp != null) {
+                checkAudioResult("Activate selected app audio (Windows build 20348 or newer required)", ProcessAudioApps.activate(processApp, result))
+                client = checkNotNull(result.value)
+                // Process loopback does not implement GetMixFormat. Request a fixed PCM format
+                // with Windows conversion, as supported by the process-loopback API.
+                val format = Memory(18).apply {
+                    clear(); setShort(0, 1); setShort(2, 2); setInt(4, LIVE_SAMPLE_RATE)
+                    setInt(8, LIVE_SAMPLE_RATE * 4); setShort(12, 4); setShort(14, 16)
+                }
+                try {
+                    checkAudioResult("Initialize selected app loopback", comCall(client!!, 3, 0, 0x80020000.toInt(),
+                        1_000_000L, 0L, format, null))
+                } finally { format.close() }
+            } else {
+                checkAudioResult("Create virtual input enumerator", Ole32.INSTANCE.CoCreateInstance(
+                    Guid.CLSID("{BCDE0395-E52F-467C-8E3D-C4579291692E}"), null, 1,
+                    Guid.IID("{A95664D2-9614-4F35-A746-DE8DB63617E6}"), result).toInt())
+                enumerator = checkNotNull(result.value)
+                checkAudioResult("Find virtual input", comCall(enumerator!!, 5, WString(endpointId), result))
+                device = checkNotNull(result.value)
+                check(AllConnectEndpointIdentity.role(device!!) == AudioOutputRole.AllConnectInput) { "The selected input is not an identified AllConnect virtual endpoint." }
+                val state = IntByReference()
+                checkAudioResult("Read virtual input state", comCall(device!!, 6, state))
+                check(state.value and 1 != 0) { "AllConnect virtual input is unavailable." }
+                val directionIid = Guid.GUID("{1BE09788-6894-4089-8586-9A2A6C265AC5}").also { it.write() }
+                checkAudioResult("Read virtual input direction", comCall(device!!, 0, directionIid.pointer, result))
+                val direction = checkNotNull(result.value)
+                try { checkAudioResult("Check virtual input direction", comCall(direction, 3, state)); check(state.value == 0) { "Only our render endpoint can supply virtual input." } }
+                finally { releaseCom(direction) }
+                val iid = Guid.GUID("{1CB9AD4C-DBFA-4C32-B178-C2F568A703B2}").also { it.write() }
+                checkAudioResult("Activate virtual input", comCall(device!!, 3, iid.pointer, 23, null, result))
+                client = checkNotNull(result.value)
+                checkAudioResult("Read virtual input format", comCall(client!!, 8, result))
+                val format = checkNotNull(result.value)
+                try {
+                    val bytes = format.getByteArray(0, 18)
+                    val extensionSize = format.getShort(16).toInt() and 65535
+                    require(extensionSize <= 64) { "Unsupported virtual input format extension." }
+                    val complete = if (extensionSize == 0) bytes else format.getByteArray(0, 18 + extensionSize)
+                    floatFormat = LiveCaptureFormat.parse(complete)
+                    checkAudioResult("Initialize owned endpoint loopback", comCall(client!!, 3, 0, 0x00020000,
+                        1_000_000L, 0L, format, null)) // Shared, LOOPBACK, 100 ms; exact negotiated mix format.
+                } finally { Ole32.INSTANCE.CoTaskMemFree(format) }
+            }
             checkAudioResult("Read capture capacity", comCall(client!!, 4, frames))
             capacity = frames.value
             require(capacity in 1..LIVE_SAMPLE_RATE) { "Virtual input buffer exceeds the one-second capture limit." }
@@ -101,8 +117,8 @@ internal class WasapiLoopbackCapture(endpointId: String) : LiveCaptureSource {
             if (nextPacket.value == 0) return total
             checkAudioResult("Acquire loopback packet", comCall(capture!!, 3, pointer, frames, flags, deviceFrame, packetQpc))
             val count = frames.value
-            if (count == 0) return total
             try {
+                if (count == 0) return total
                 require(count in 1..capacity) { "Invalid loopback packet length." }
                 if (flags.value and 2 != 0) samples.fill(0f, 0, count * 2) else {
                     val data = checkNotNull(pointer.value) { "Loopback data is unavailable." }

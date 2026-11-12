@@ -1,11 +1,17 @@
 package com.example.connectallspeakers.ViewModels.main
 
+import com.example.connectallspeakers.model.audio.CaptureApp
+
 import com.example.connectallspeakers.model.RoomPosition
 import com.example.connectallspeakers.model.SpeakerChannel
 import com.example.connectallspeakers.state.MainDialog
 
 /** User intents emitted by stateless rendering; platform audio executes behind a shared contract. */
 sealed interface MainAction {
+    /** @property mode Destination; navigation stops playback without changing room edits. */
+    data class SelectWorkspace(val mode: com.example.connectallspeakers.state.WorkspaceMode) : MainAction
+    /** @property action Session-only group operation using the existing engine. */
+    data class Group(val action: GroupSoundAction) : MainAction
     /** @property id Existing room to activate. */
     data class SelectSetup(val id: String) : MainAction
     /** @property id Existing card in the active room. */
@@ -69,6 +75,14 @@ sealed interface MainAction {
     data class SelectVirtualInput(val endpointId: String) : MainAction
     /** Explicitly forwards the selected owned virtual endpoint to the active room. */
     data object StartVirtualInput : MainAction
+    /** Selects app capture without starting audio; leaving this mode stops capture. */
+    data object SelectAppCaptureMode : MainAction
+    /** Refreshes readable running app identities; never captures automatically. */
+    data object RefreshCaptureApps : MainAction
+    /** Selects an exact current app identity without starting audio. */
+    data class SelectCaptureApp(val app: CaptureApp) : MainAction
+    /** Explicitly forwards the selected app's audio to the physical room outputs. */
+    data object StartAppCapture : MainAction
     /** @property dialog Modal to open. */
     data class OpenDialog(val dialog: MainDialog) : MainAction
     /** @property name Current setup-name input. */

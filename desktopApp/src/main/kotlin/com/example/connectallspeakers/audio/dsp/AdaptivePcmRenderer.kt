@@ -14,7 +14,7 @@ import com.example.connectallspeakers.model.audio.PlaybackRoute
  */
 internal class AdaptivePcmRenderer(private val source: DecodedAudio, private val channels: Int,
     private val capacityFrames: Int, private val delayFrames: Int,
-    private val eq: OutputEqProcessor = OutputEqProcessor(source.sampleRate)) {
+    private val eq: OutputChannelEq = OutputChannelEq(source.sampleRate, channels = channels)) {
     private val history = SourceFrameHistory(capacityFrames + delayFrames + source.sampleRate * 2 + 2)
     private val delay = PcmDelayLine(delayFrames, channels, capacityFrames)
     private var sourceFrame = 0.0
@@ -44,32 +44,29 @@ internal class AdaptivePcmRenderer(private val source: DecodedAudio, private val
         if (!sourceEnded) eq.request(route.eq)
         var frames = 0
         var offset = 0
-        val gain = route.volumePercent / 100f
         val step = 1.0 + correctionPpm / 1_000_000.0
         while (frames < maximumFrames && !finished) {
             val endOfSource = sourceEnded
-            val sample = if (!sourceEnded) {
+            var left = 0f
+            var right = 0f
+            if (!sourceEnded) {
                 val index = sourceFrame.toInt()
                 val fraction = sourceFrame - index
-                val left = interpolate(index, fraction, 0)
-                val right = if (source.channels == 1) left else interpolate(index, fraction, 1)
-                val input = when (route.channel) {
-                    SpeakerChannel.Left -> left
-                    SpeakerChannel.Right -> right
-                    SpeakerChannel.Mono -> (left + right) * .5f
-                }
+                left = interpolate(index, fraction, 0)
+                right = if (source.channels == 1) left else interpolate(index, fraction, 1)
                 sourceFrame = minOf(source.frames.toDouble(), sourceFrame + step)
-                if (input.isFinite()) (input * gain).coerceIn(-1f, 1f) else 0f
-            } else { if (eq.remainingTailFrames == 0) tailFrames--; 0f }
+            } else if (eq.remainingTailFrames == 0) tailFrames--
             history.append(sourceFrame)
-            val bits = eq.process(sample, endOfSource).toRawBits()
-            repeat(channels) {
+            repeat(channels) { channel ->
+                val sample = ChannelRenderer.sample(left, right, channel, channels, route)
+                val bits = eq.process(sample, endOfSource, channel).toRawBits()
                 bytes[offset++] = bits.toByte(); bytes[offset++] = (bits ushr 8).toByte()
                 bytes[offset++] = (bits ushr 16).toByte(); bytes[offset++] = (bits ushr 24).toByte()
             }
             frames++
         }
         delay.process(bytes, frames)
+        if (route.muted) bytes.fill(0, 0, frames * channels * 4)
         return frames
     }
 

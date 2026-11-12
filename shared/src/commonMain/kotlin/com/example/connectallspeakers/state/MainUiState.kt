@@ -1,5 +1,7 @@
 package com.example.connectallspeakers.state
 
+import com.example.connectallspeakers.model.audio.CaptureApp
+
 import com.example.connectallspeakers.model.RoomSetup
 import com.example.connectallspeakers.model.RoomSpeaker
 import com.example.connectallspeakers.model.emptySetups
@@ -16,6 +18,8 @@ enum class MainDialog { AddSetup, RenameSetup, DeleteSetup, AddSpeaker, Settings
 enum class ProfileStorageStatus { SessionOnly, Loading, Ready, LoadFailed }
 
 /** One authoritative, immutable frontend session snapshot.
+ * @property workspace Active presentation; switching stops audio.
+ * @property group Session-only group membership and listening settings, excluded from profiles.
  * @property setups Current independently edited rooms.
  * @property selectedSetupId Active room, or null when none remain.
  * @property savedSetups Last successfully saved snapshots for the active bank; independent of unsaved edits.
@@ -33,8 +37,16 @@ enum class ProfileStorageStatus { SessionOnly, Loading, Ready, LoadFailed }
  * @property liveInputMode Explicit session-only source choice; never restored as an autoplay intent.
  * @property virtualInputId Explicit driver-owned input selection, independent of physical room routes.
  * @property virtualInputSupported Whether this platform supplies a real capture implementation.
+ * @property appCaptureMode Whether the explicitly selected live source is a process tree.
+ * @property appCaptureSupported Whether the platform supplies process-loopback capture.
+ * @property captureApps Temporary readable-process discovery results, never saved in room profiles.
+ * @property selectedCaptureApp Exact process/creation identity chosen without starting capture.
+ * @property captureAppsLoading Whether an explicit app refresh is in progress.
+ * @property captureAppsError Readable discovery failure, independent of physical-output discovery.
  */
 data class MainUiState(
+    val workspace: WorkspaceMode = WorkspaceMode.Room,
+    val group: GroupSoundState = GroupSoundState(),
     val setups: List<RoomSetup> = emptySetups(),
     val selectedSetupId: String? = "living",
     val savedSetups: Map<String, RoomSetup> = emptyMap(),
@@ -51,6 +63,12 @@ data class MainUiState(
     val savingProfiles: Boolean = false,
     val profileError: String? = null,
     val liveInputMode: Boolean = false,
+    val appCaptureMode: Boolean = false,
+    val appCaptureSupported: Boolean = false,
+    val captureApps: List<CaptureApp> = emptyList(),
+    val selectedCaptureApp: CaptureApp? = null,
+    val captureAppsLoading: Boolean = false,
+    val captureAppsError: String? = null,
     val virtualInputId: String? = null,
     val virtualInputSupported: Boolean = false,
 ) {

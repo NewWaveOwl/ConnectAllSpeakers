@@ -33,7 +33,8 @@ fun AudioSourceControls(state: MainUiState, onAction: (MainAction) -> Unit) {
         Text("Audio source", style = MaterialTheme.typography.labelLarge)
         val colors = FilterChipDefaults.filterChipColors(selectedContainerColor = C.Sage, selectedLabelColor = C.Ink, labelColor = C.Muted)
         FilterChip(selected = !state.liveInputMode, onClick = { onAction(MainAction.SetLiveInputMode(false)) }, label = { Text("Local file") }, colors = colors)
-        FilterChip(selected = state.liveInputMode, onClick = { onAction(MainAction.SetLiveInputMode(true)) }, label = { Text("Virtual input · experimental") }, colors = colors)
+        FilterChip(selected = state.liveInputMode && !state.appCaptureMode, onClick = { onAction(MainAction.SetLiveInputMode(true)) }, label = { Text("Virtual input · experimental") }, colors = colors)
+        FilterChip(selected = state.appCaptureMode, onClick = { onAction(MainAction.SelectAppCaptureMode) }, label = { Text("App audio · experimental") }, colors = colors)
     }
 }
 

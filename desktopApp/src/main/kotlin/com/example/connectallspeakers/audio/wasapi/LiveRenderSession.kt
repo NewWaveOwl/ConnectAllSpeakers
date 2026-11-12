@@ -19,7 +19,7 @@ internal class LiveRenderSession(private val inputId: String, private val captur
     private class Stream(val id: String, val endpoint: PlaybackEndpoint, val route: PlaybackRoute) {
         val bytes = ByteArray(endpoint.capacityFrames * endpoint.channels * 4)
         val delayFrames = outputDelayFrames(route.delayMillis, LIVE_SAMPLE_RATE)
-        var eq = OutputEqProcessor(LIVE_SAMPLE_RATE, route.eq)
+        var eq = OutputChannelEq(LIVE_SAMPLE_RATE, route.eq, endpoint.channels)
         var delay = PcmDelayLine(delayFrames, endpoint.channels, endpoint.capacityFrames)
         var history = SourceFrameHistory(endpoint.capacityFrames + delayFrames + LIVE_SAMPLE_RATE * 2 + 4)
         var rate = LiveRateControl()
@@ -28,7 +28,7 @@ internal class LiveRenderSession(private val inputId: String, private val captur
         var queued = 0
         /** Resets processing only after the native stream has stopped and its queue was discarded. */
         fun reset() {
-            eq = OutputEqProcessor(LIVE_SAMPLE_RATE, route.eq)
+            eq = OutputChannelEq(LIVE_SAMPLE_RATE, route.eq, endpoint.channels)
             delay = PcmDelayLine(delayFrames, endpoint.channels, endpoint.capacityFrames)
             history = SourceFrameHistory(endpoint.capacityFrames + delayFrames + LIVE_SAMPLE_RATE * 2 + 4)
             rate = LiveRateControl(); cursor = 0.0; submitted = 0; queued = 0
@@ -121,12 +121,9 @@ internal class LiveRenderSession(private val inputId: String, private val captur
             repeat(frames) {
                 check(buffer.canRead(stream.cursor)) { "Live source underflow. Restart live input." }
                 val left = buffer.sample(stream.cursor, 0); val right = buffer.sample(stream.cursor, 1)
-                val input = when (route.channel) {
-                    SpeakerChannel.Left -> left; SpeakerChannel.Right -> right; SpeakerChannel.Mono -> (left + right) * .5f
-                }
-                val gained = (input * (route.volumePercent / 100f)).coerceIn(-1f, 1f)
-                val bits = stream.eq.process(gained).toRawBits()
-                repeat(stream.endpoint.channels) {
+                repeat(stream.endpoint.channels) { channel ->
+                    val gained = ChannelRenderer.sample(left, right, channel, stream.endpoint.channels, route)
+                    val bits = stream.eq.process(gained, false, channel).toRawBits()
                     stream.bytes[offset++] = bits.toByte(); stream.bytes[offset++] = (bits ushr 8).toByte()
                     stream.bytes[offset++] = (bits ushr 16).toByte(); stream.bytes[offset++] = (bits ushr 24).toByte()
                 }
@@ -135,6 +132,7 @@ internal class LiveRenderSession(private val inputId: String, private val captur
             }
             if (frames > 0) {
                 stream.delay.process(stream.bytes, frames)
+                if (route.muted) stream.bytes.fill(0, 0, frames * stream.endpoint.channels * 4)
                 stream.endpoint.submit(stream.bytes, frames)
                 stream.submitted += frames
                 stream.queued += frames
@@ -163,8 +161,8 @@ internal class LiveRenderSession(private val inputId: String, private val captur
         buffer.writtenFrames > 0 -> LiveInputPhase.Buffering
         else -> LiveInputPhase.Idle
     }, buffer.retainedFrames, buffer.writtenFrames, streams.associate { it.id to it.rate.correctionPpm },
-        if (running) "Forwarding virtual input. Queue-based rate control is experimental; acoustic alignment is unverified. Input samples limited: ${buffer.limitedSamples}."
-        else "Waiting for fresh audio on AllConnect Speakers. No paused recording is retained.")
+        if (running) "Forwarding live audio. Queue-based rate control is experimental; acoustic alignment is unverified. Input samples limited: ${buffer.limitedSamples}."
+        else "Waiting for fresh source audio. No paused recording is retained.")
 
     /** @return Independent stream diagnostics; clocks are deliberately Unknown rather than inferred. */
     fun timingSnapshot(): List<OutputTiming> = streams.map { stream ->
