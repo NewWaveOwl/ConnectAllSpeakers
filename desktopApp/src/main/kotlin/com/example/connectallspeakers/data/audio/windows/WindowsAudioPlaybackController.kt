@@ -8,6 +8,11 @@ import com.example.connectallspeakers.audio.dsp.calibrationSignal
 import com.example.connectallspeakers.audio.wasapi.PlaybackDeviceSession
 import com.example.connectallspeakers.audio.wasapi.PlaybackRenderSession
 import com.example.connectallspeakers.audio.wasapi.WasapiDeviceSession
+import com.example.connectallspeakers.audio.wasapi.LiveRenderSession
+import com.example.connectallspeakers.audio.input.LiveCaptureSource
+import com.example.connectallspeakers.audio.input.windows.WasapiLoopbackCapture
+import com.example.connectallspeakers.audio.input.windows.ProcessAudioCapture
+import com.example.connectallspeakers.audio.input.windows.ProcessAudioApps
 import com.example.connectallspeakers.data.audio.AudioOutputRepository
 import com.example.connectallspeakers.data.audio.AudioOutputStatus
 import com.example.connectallspeakers.data.audio.AudioPlaybackController
@@ -22,7 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
-/** Explicit local-file playback on a dedicated COM worker; construction never opens an audio stream.
+/** Explicit local-file playback and owned-input forwarding on a dedicated COM worker; construction is silent.
  * Commands are conflated and versioned so Stop/close cancels stale decoding or stream preparation.
  * @param outputs Discovery state used to validate exact endpoint identities and detect removal.
  * @param decoder Bounded local-file decoder; tests inject generated PCM without file/device access.
@@ -30,6 +35,8 @@ import java.util.concurrent.atomic.AtomicReference
  * @param dispatcher Serial, thread-confined worker; production owns its dedicated executor.
  * @param disposeDispatcher Releases the owned executor after native cleanup, or a no-op in tests.
  * @param monotonicNanos Monotonic local observation clock; tests can inject virtual time.
+ * @param liveCaptureFactory Lazy exact-owned-endpoint capture factory; never invoked at construction.
+ * @param processCaptureFactory Lazy selected-process capture factory; tests inject PCM without OS capture.
  */
 class WindowsAudioPlaybackController internal constructor(
     private val outputs: AudioOutputRepository,
@@ -38,6 +45,8 @@ class WindowsAudioPlaybackController internal constructor(
     private val dispatcher: CoroutineDispatcher,
     private val disposeDispatcher: () -> Unit,
     private val monotonicNanos: () -> Long = System::nanoTime,
+    private val liveCaptureFactory: (String) -> LiveCaptureSource = { WasapiLoopbackCapture(it) },
+    private val processCaptureFactory: (CaptureApp) -> LiveCaptureSource = { ProcessAudioCapture(it) },
 ) : AudioPlaybackController, AutoCloseable {
     /** Production assembly. Native APIs remain lazy until an explicit playback/test/calibration action.
      * @param outputs Application-owned Windows discovery repository, outliving this controller.
@@ -49,11 +58,22 @@ class WindowsAudioPlaybackController internal constructor(
         this(outputs, decoder, deviceFactory, worker, { worker.close() })
 
     private data class Command(val epoch: Long, val kind: Kind, val path: String? = null,
-        val routes: List<PlaybackRoute> = emptyList(), val referenceEndpointId: String? = null)
-    private enum class Kind { Load, Play, Pause, Stop, Test, Calibrate }
+        val routes: List<PlaybackRoute> = emptyList(), val referenceEndpointId: String? = null, val inputEndpointId: String? = null,
+        val processApp: CaptureApp? = null)
+    private enum class Kind { Load, Play, Pause, Stop, Test, Calibrate, Live }
     private val mutablePlayback = MutableStateFlow(PlaybackSnapshot(PlaybackPhase.Empty,
         message = "Choose a local WAV or MP3 file. Playback starts only when you press Play."))
     override val playback = mutablePlayback.asStateFlow()
+    override val supportsVirtualInput: Boolean = true
+    override val supportsAppCapture: Boolean = true
+    override suspend fun captureApps(): List<CaptureApp> = withContext(Dispatchers.IO) { ProcessAudioApps.list() }
+    override fun startAppCapture(app: CaptureApp, routes: List<PlaybackRoute>) {
+        if (closed.get()) return
+        val snapshot = routes.toList()
+        liveRoutes.set(snapshot)
+        val epoch = generation.incrementAndGet()
+        commands.trySend(Command(epoch, Kind.Live, routes = snapshot, processApp = app))
+    }
     private val closed = AtomicBoolean(false)
     private val generation = AtomicLong()
     private val liveRoutes = AtomicReference<List<PlaybackRoute>>(emptyList())
@@ -62,6 +82,10 @@ class WindowsAudioPlaybackController internal constructor(
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private var source: DecodedAudio? = null
     private var session: PlaybackRenderSession? = null
+    private var liveSession: LiveRenderSession? = null
+    private var liveInputId: String? = null
+    private var liveApp: CaptureApp? = null
+    private var liveEpoch = 0L
     private var sessionIds: Set<String> = emptySet()
     private var sessionDriftReference: String? = null
     private var testing = false
@@ -73,7 +97,7 @@ class WindowsAudioPlaybackController internal constructor(
     private val worker = scope.launch {
         try {
             while (!closed.get()) {
-                val command = if (session != null) withTimeoutOrNull(if (paused) 50 else 5) { commands.receiveCatching().getOrNull() }
+                val command = if (session != null || liveSession != null) withTimeoutOrNull(if (paused) 50 else 5) { commands.receiveCatching().getOrNull() }
                     else commands.receiveCatching().getOrNull()
                 if (closed.get()) break
                 if (command != null && command.epoch == generation.get()) handle(command)
@@ -111,6 +135,20 @@ class WindowsAudioPlaybackController internal constructor(
                         }
                     } catch (failure: Exception) { failSession(failure) }
                 }
+                liveSession?.let { live ->
+                    try {
+                        checkConnected()
+                        live.pump(liveRoutes.get()) { checkCurrent(liveEpoch) }
+                        if (monotonicNanos() >= nextMeasurementNanos) {
+                            lastTimings = live.timingSnapshot()
+                            timingSequence++
+                            nextMeasurementNanos = monotonicNanos() + 200_000_000L
+                            publish(PlaybackPhase.Playing, live.status().message.orEmpty())
+                        }
+                    } catch (_: CancellationException) {
+                        try { releaseSession() } catch (cleanup: Exception) { failSession(cleanup) }
+                    } catch (failure: Exception) { failSession(failure) }
+                }
             }
         } finally {
             try { releaseSession() } finally { scope.cancel(); disposeDispatcher() }
@@ -127,6 +165,15 @@ class WindowsAudioPlaybackController internal constructor(
         val snapshot = routes.toList()
         liveRoutes.set(snapshot)
         enqueue(Kind.Play, routes = snapshot, referenceEndpointId = driftReferenceEndpointId)
+    }
+    /** Starts forwarding only the explicitly selected owned input; no default-device capture exists.
+     * @param endpointId Driver-marked virtual render endpoint. @param routes Physical destinations.
+     */
+    override fun startVirtualInput(endpointId: String, routes: List<PlaybackRoute>) {
+        if (closed.get()) return
+        val snapshot = routes.toList()
+        liveRoutes.set(snapshot)
+        enqueue(Kind.Live, routes = snapshot, inputEndpointId = endpointId)
     }
     /** Pauses the existing buffers; the next Play resumes them. */
     override fun pause() { enqueue(Kind.Pause) }
@@ -150,7 +197,7 @@ class WindowsAudioPlaybackController internal constructor(
         routeUpdateError.set(null)
         mutablePlayback.update { it.copy(routeUpdateError = null) }
         val previous = liveRoutes.getAndSet(snapshot)
-        if (snapshot.any { next -> previous.any { it.endpointId == next.endpointId && it.delayMillis != next.delayMillis } }) stop()
+        if (snapshot.any { next -> previous.any { it.endpointId == next.endpointId && (it.delayMillis != next.delayMillis || it.mix != next.mix) } }) stop()
     }
 
     /** @param routes Two real routes. @param referenceEndpointId Zero-delay reference from those routes. */
@@ -179,10 +226,12 @@ class WindowsAudioPlaybackController internal constructor(
 
     /** @param kind Latest user command. @param path Optional local source.
      * @param routes Explicit routing snapshot. @param referenceEndpointId Optional zero-delay calibration reference.
+     * @param inputEndpointId Explicit owned live-source identity, separate from a local file path.
      */
-    private fun enqueue(kind: Kind, path: String? = null, routes: List<PlaybackRoute> = emptyList(), referenceEndpointId: String? = null) {
+    private fun enqueue(kind: Kind, path: String? = null, routes: List<PlaybackRoute> = emptyList(), referenceEndpointId: String? = null,
+        inputEndpointId: String? = null) {
         if (closed.get()) return
-        commands.trySend(Command(generation.incrementAndGet(), kind, path, routes, referenceEndpointId))
+        commands.trySend(Command(generation.incrementAndGet(), kind, path, routes, referenceEndpointId, inputEndpointId))
     }
 
     /** Executes a current command, converting failures to durable UI state without swallowing cancellation.
@@ -203,7 +252,7 @@ class WindowsAudioPlaybackController internal constructor(
                 }
                 Kind.Play -> {
                     validate(command.routes)
-                    val rate = lastTimings.firstOrNull()?.sampleRate ?: source?.sampleRate
+                    val rate = source?.sampleRate
                     rate?.let { processingRate -> command.routes.forEach { it.eq.validateForSampleRate(processingRate) } }
                     require(command.referenceEndpointId == null || command.routes.size == 2 && command.routes.any {
                         it.endpointId == command.referenceEndpointId && it.delayMillis == 0
@@ -217,6 +266,7 @@ class WindowsAudioPlaybackController internal constructor(
                     } else start(command, source ?: error("Choose a WAV or MP3 file first."), false)
                 }
                 Kind.Test -> start(command, speakerTestTone(), true)
+                Kind.Live -> startLive(command)
                 Kind.Calibrate -> {
                     require(command.routes.size == 2 && command.routes.any { it.endpointId == command.referenceEndpointId && it.delayMillis == 0 }) {
                         "Calibration needs two outputs and a zero-delay reference."
@@ -228,7 +278,10 @@ class WindowsAudioPlaybackController internal constructor(
                     paused = true
                     nextMeasurementNanos = Long.MIN_VALUE
                     publish(PlaybackPhase.Paused, "Paused.", session!!.positionMillis)
-                } else publish(if (source == null) PlaybackPhase.Empty else PlaybackPhase.Stopped, "No active playback to pause.")
+                } else {
+                    releaseSession()
+                    publish(if (source == null) PlaybackPhase.Empty else PlaybackPhase.Stopped, "Stopped. Live input cannot be paused or recorded.")
+                }
                 Kind.Stop -> { releaseSession(); publish(if (source == null) PlaybackPhase.Empty else PlaybackPhase.Stopped, "Stopped.") }
             }
         } catch (_: CancellationException) {
@@ -273,6 +326,43 @@ class WindowsAudioPlaybackController internal constructor(
         })
     }
 
+    /** Builds a new bounded live lifetime; cancellation/partial failure closes both capture and targets.
+     * @param command Exact input identity and physical routes from one explicit Start action.
+     */
+    private fun startLive(command: Command) {
+        releaseSession()
+        validate(command.routes)
+        val app = command.processApp
+        val input = app?.let { "process:${it.processId}:${it.startedAtMillis}" } ?: requireNotNull(command.inputEndpointId)
+        if (app == null) validateInput(input)
+        command.routes.forEach { it.eq.validateForSampleRate(LIVE_SAMPLE_RATE) }
+        checkCurrent(command.epoch)
+        routeUpdateError.set(null)
+        lastTimings = emptyList()
+        liveInputId = input.takeIf { app == null }
+        liveApp = app
+        liveEpoch = command.epoch
+        sessionIds = command.routes.map { it.endpointId }.toSet()
+        nextMeasurementNanos = Long.MIN_VALUE
+        publish(PlaybackPhase.Starting, if (app == null) "Opening AllConnect virtual input and selected outputs…" else "Opening selected app audio and outputs…")
+        val capture = if (app == null) liveCaptureFactory(input) else processCaptureFactory(app)
+        val devices = try { deviceFactory() } catch (failure: Throwable) {
+            try { capture.close() } catch (cleanup: Throwable) { failure.addSuppressed(cleanup) }; throw failure
+        }
+        val prepared = LiveRenderSession(input, capture, devices, monotonicNanos)
+        liveSession = prepared
+        prepared.prepare(command.routes) { checkCurrent(command.epoch); checkConnected(); if (app == null) validateInput(input) }
+        publish(PlaybackPhase.Playing, if (app == null) "Waiting for audio on AllConnect Speakers." else "Waiting for selected app audio.")
+    }
+
+    /** @param id Exact driver-owned render endpoint; names alone never establish ownership. */
+    private fun validateInput(id: String) {
+        val discovery = outputs.outputs.value
+        check(discovery.status == AudioOutputStatus.Ready && discovery.devices.any {
+            it.endpointId == id && it.role == AudioOutputRole.AllConnectInput && it.availability == OutputAvailability.Active
+        }) { "AllConnect virtual input is unavailable. Install the reviewed driver, refresh, then explicitly Start again." }
+    }
+
     /** Rejects invalid routes and stale discovery rather than sending audio elsewhere.
      * @param routes Exact requested endpoint snapshots.
      */
@@ -281,7 +371,7 @@ class WindowsAudioPlaybackController internal constructor(
         require(routes.map { it.endpointId }.distinct().size == routes.size) { "Each playback output must be unique." }
         val discovery = outputs.outputs.value
         check(discovery.status == AudioOutputStatus.Ready) { "Refresh outputs successfully before starting playback." }
-        check(routes.all { route -> discovery.devices.any { it.endpointId == route.endpointId && it.availability == OutputAvailability.Active } }) {
+        check(routes.all { route -> discovery.devices.singleOrNull { it.endpointId == route.endpointId }?.let { it.availability == OutputAvailability.Active && it.role == AudioOutputRole.PlaybackTarget } == true }) {
             "A selected output is unavailable. Reconnect it, refresh, then press Play."
         }
     }
@@ -290,9 +380,10 @@ class WindowsAudioPlaybackController internal constructor(
     private fun checkConnected() {
         val discovery = outputs.outputs.value
         if (discovery.status == AudioOutputStatus.Ready) {
-            check(sessionIds.all { id -> discovery.devices.any { it.endpointId == id && it.availability == OutputAvailability.Active } }) {
+            check(sessionIds.all { id -> discovery.devices.singleOrNull { it.endpointId == id }?.let { it.availability == OutputAvailability.Active && it.role == AudioOutputRole.PlaybackTarget } == true }) {
                 "A selected output disconnected. Playback stopped; reconnect it and press Play."
             }
+            liveInputId?.let { validateInput(it) }
         }
         check(liveRoutes.get().map { it.endpointId }.toSet() == sessionIds) { "Room outputs changed. Press Play to start the new routing." }
     }
@@ -305,14 +396,19 @@ class WindowsAudioPlaybackController internal constructor(
     /** Closes even a paused or partly prepared session and clears routing identity. */
     private fun releaseSession() {
         val previous = session
+        val previousLive = liveSession
         if (previous != null) lastTimings = previous.timingSnapshot().map { it.unavailable("Session ended; live timing unavailable") }
+        if (previousLive != null) lastTimings = previousLive.timingSnapshot().map { it.unavailable("Session ended; live timing unavailable") }
         session = null
+        liveSession = null
+        liveInputId = null
+        liveApp = null
         sessionIds = emptySet()
         sessionDriftReference = null
         paused = false
         testing = false
         calibrating = false
-        previous?.close()
+        try { previous?.close() } finally { previousLive?.close() }
     }
 
     /** @return Explicit experimental/uncalibrated status; clocks never establish acoustic alignment. */
@@ -332,9 +428,11 @@ class WindowsAudioPlaybackController internal constructor(
      */
     private fun publish(phase: PlaybackPhase, message: String, position: Long = 0) {
         mutablePlayback.value = PlaybackSnapshot(phase,
-            if (testing || calibrating) mutablePlayback.value.source else source?.description, position, sessionIds.toSet(), testing, message,
+            if (liveApp != null) PlaybackSource("${liveApp!!.name} · app audio", 0, LIVE_SAMPLE_RATE, LIVE_CHANNELS)
+            else if (liveInputId != null) PlaybackSource("AllConnect Speakers · live", 0, LIVE_SAMPLE_RATE, LIVE_CHANNELS)
+            else if (testing || calibrating) mutablePlayback.value.source else source?.description, position, sessionIds.toSet(), testing, message,
             outputTimings = lastTimings, timingSequence = timingSequence, isCalibration = calibrating,
-            routeUpdateError = routeUpdateError.get())
+            routeUpdateError = routeUpdateError.get(), liveInput = liveSession?.status())
     }
 
     companion object {

@@ -26,6 +26,7 @@ object AllConnectColors {
     val Paper = Color(0xFFFAF8F5)
     val Soft = Color(0xFFF1EBE5)
     val Line = Color(0xFFE8E2DD)
+    val Deep = Color(0xFF302832)
 }
 
 /**

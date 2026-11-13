@@ -127,7 +127,7 @@ class EqPlaybackSessionTest {
     @Test fun fractionalDriftCursorWithEqKeepsItsHistoryAndDrainsBeforeManualDelayEnds() {
         for (ppm in listOf(-1000.0, 1000.0)) {
             val source = source(8000)
-            val eq = OutputEqProcessor(8000, cut)
+            val eq = OutputChannelEq(8000, cut)
             val renderer = AdaptivePcmRenderer(source, 2, 128, 56, eq)
             renderer.setCorrection(ppm)
             val buffer = ByteArray(128 * 2 * 4)

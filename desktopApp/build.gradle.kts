@@ -31,3 +31,16 @@ compose.desktop {
         }
     }
 }
+
+// Bundle the ordinary user-mode activation DLL for JNA, including packaged MSI/app images.
+val processCaptureResources = layout.buildDirectory.dir("generated/processCaptureResources")
+val buildProcessCapture by tasks.registering(Exec::class) {
+    onlyIf { System.getProperty("os.name").startsWith("Windows") }
+    inputs.files(rootProject.fileTree("native/windows/processCapture") { exclude("build/**") })
+    outputs.dir(processCaptureResources)
+    commandLine("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+        rootProject.file("native/windows/processCapture/Build.ps1").absolutePath,
+        "-ResourceDirectory", processCaptureResources.get().asFile.absolutePath)
+}
+sourceSets.main { resources.srcDir(processCaptureResources) }
+tasks.named("processResources") { dependsOn(buildProcessCapture) }

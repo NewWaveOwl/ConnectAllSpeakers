@@ -7,15 +7,15 @@ import kotlin.math.floor
  */
 internal class SourceFrameHistory(capacity: Int) {
     private val positions = DoubleArray(capacity.also { require(it in 2..864_002) })
-    private var newest = 0
+    private var newest = 0L
 
     /** Appends the next output boundary without allocating.
      * @param sourceFrame Nondecreasing finite source progress, in source frames.
      */
     fun append(sourceFrame: Double) {
-        require(sourceFrame.isFinite() && sourceFrame >= positions[newest % positions.size])
+        require(sourceFrame.isFinite() && sourceFrame >= positions[(newest % positions.size).toInt()])
         newest++
-        positions[newest % positions.size] = sourceFrame
+        positions[(newest % positions.size).toInt()] = sourceFrame
     }
 
     /** Interpolates retained frame boundaries, never fabricating an evicted/future position.
@@ -26,9 +26,9 @@ internal class SourceFrameHistory(capacity: Int) {
         if (!outputFrame.isFinite()) return null
         if (outputFrame <= 0) return 0.0
         if (outputFrame > newest || outputFrame < maxOf(0, newest - positions.size + 1)) return null
-        val first = floor(outputFrame).toInt()
+        val first = floor(outputFrame).toLong()
         val fraction = outputFrame - first
-        val left = positions[first % positions.size]
-        return if (fraction == 0.0) left else left + (positions[(first + 1) % positions.size] - left) * fraction
+        val left = positions[(first % positions.size).toInt()]
+        return if (fraction == 0.0) left else left + (positions[((first + 1) % positions.size).toInt()] - left) * fraction
     }
 }

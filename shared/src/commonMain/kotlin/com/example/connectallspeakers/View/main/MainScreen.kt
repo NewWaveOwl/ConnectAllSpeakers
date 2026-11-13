@@ -19,6 +19,9 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.example.connectallspeakers.View.main.components.*
 import com.example.connectallspeakers.ViewModels.main.MainAction
+import com.example.connectallspeakers.state.WorkspaceMode
+import com.example.connectallspeakers.View.group.GroupSoundScreen
+import com.example.connectallspeakers.ViewModels.main.GroupSoundAction
 import com.example.connectallspeakers.state.MainDialog
 import com.example.connectallspeakers.state.MainUiState
 import com.example.connectallspeakers.state.ProfileStorageStatus
@@ -48,24 +51,29 @@ fun MainScreen(state: MainUiState, onAction: (MainAction) -> Unit, modifier: Mod
         }
         return
     }
+    if (state.workspace == WorkspaceMode.GroupSound) {
+        GroupSoundScreen(state, onAction, modifier)
+        SetupDialogs(state, onAction)
+        return
+    }
     BoxWithConstraints(modifier.fillMaxSize()) {
         val wide = maxWidth >= StackedBreakpoint
         val canvasHeight = (maxHeight - WorkspaceChromeHeight).coerceAtLeast(MinCanvasHeight)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).background(C.Paper)) {
-            WorkspaceHeader { onAction(MainAction.OpenDialog(MainDialog.Settings)) }
+            WorkspaceHeader(state, onAction)
             SetupToolbar(state, onAction)
             ProfileStorageStatus(state, onAction)
             if (wide) {
                 Row(Modifier.fillMaxWidth().padding(ScreenPadding), horizontalArrangement = Arrangement.spacedBy(ScreenPadding)) {
                     RoomColumn(state, onAction, Modifier.weight(1f), canvasHeight)
                     SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, state.demoMode, onAction, Modifier.width(InspectorWidth),
-                        state.selectedSetup?.calibrationReference?.id)
+                        state.selectedSetup?.calibrationReference?.id, testingSpeakerId = state.testingSpeakerId)
                 }
             } else {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     RoomColumn(state, onAction, Modifier.fillMaxWidth(), canvasHeight)
                     SpeakerInspector(state.selectedSpeaker, state.selectedSetup != null, state.demoMode, onAction, Modifier.fillMaxWidth(),
-                        state.selectedSetup?.calibrationReference?.id)
+                        state.selectedSetup?.calibrationReference?.id, testingSpeakerId = state.testingSpeakerId)
                 }
             }
         }
@@ -81,26 +89,45 @@ fun MainScreen(state: MainUiState, onAction: (MainAction) -> Unit, modifier: Mod
 }
 
 /** Renders the exported 44 × 52 logo slot and the Settings action.
- * @param onSettings Opens the screen-local Settings dialog.
+ * @param state Current navigation destination. @param onAction Explicit navigation/settings intent.
  */
 @Composable
-private fun WorkspaceHeader(onSettings: () -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxWidth().height(76.dp).background(MaterialTheme.colorScheme.surface)) {
-        val flexibleSpace = (maxWidth - 740.dp).coerceIn(0.dp, 700.dp)
-        Row(Modifier.fillMaxSize().padding(horizontal = ScreenPadding), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.size(44.dp, 52.dp).clip(RoundedCornerShape(10.dp)).background(C.Paper)) {
-                Image(painterResource(Res.drawable.allconnect_logo_render), "AllConnect logo",
-                    Modifier.size(44.dp, 52.dp))
-            }
-            Text(buildAnnotatedString {
-                withStyle(SpanStyle(color = C.Plum)) { append("All") }
-                withStyle(SpanStyle(color = C.Teal)) { append("Connect") }
-            }, style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.width(flexibleSpace))
-            WorkspaceButton("Settings", onSettings, Modifier.width(124.dp), Glyph.Settings)
+fun WorkspaceHeader(state: MainUiState, onAction: (MainAction) -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val flexibleSpace = (maxWidth - if (state.workspace == WorkspaceMode.GroupSound) 822.dp else 660.dp).coerceAtLeast(0.dp)
+    Row(Modifier.fillMaxWidth().height(76.dp).background(MaterialTheme.colorScheme.surface)
+        .horizontalScroll(rememberScrollState()).padding(horizontal = ScreenPadding),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Box(Modifier.size(44.dp, 52.dp).clip(RoundedCornerShape(10.dp)).background(C.Paper)) {
+            Image(painterResource(Res.drawable.allconnect_logo_render), "AllConnect logo", Modifier.size(44.dp, 52.dp))
         }
+        Text(buildAnnotatedString {
+            withStyle(SpanStyle(color = C.Plum)) { append("All") }
+            withStyle(SpanStyle(color = C.Teal)) { append("Connect") }
+        }, style = MaterialTheme.typography.titleLarge)
+        WorkspaceTab("Room setup", state.workspace == WorkspaceMode.Room, Glyph.Speaker) { onAction(MainAction.SelectWorkspace(WorkspaceMode.Room)) }
+        WorkspaceTab("Group Sound", state.workspace == WorkspaceMode.GroupSound, Glyph.Headphones) { onAction(MainAction.SelectWorkspace(WorkspaceMode.GroupSound)) }
+        Spacer(Modifier.width(flexibleSpace))
+        if (state.workspace == WorkspaceMode.GroupSound) WorkspaceButton("Audio sources", { onAction(MainAction.Group(GroupSoundAction.ChooseSource)) }, glyph = "\uE890")
+        WorkspaceButton("Settings", { onAction(MainAction.OpenDialog(MainDialog.Settings)) }, glyph = Glyph.Settings)
     }
+    }
+}
+
+/** Accessible mode selector, preserving the design's sage selected treatment.
+ * @param text Visible destination. @param active Whether this is the current view.
+ * @param glyph Decorative icon. @param onClick Explicit navigation intent.
+ */
+@Composable
+private fun WorkspaceTab(text: String, active: Boolean, glyph: String, onClick: () -> Unit) {
+    if (active) Surface(onClick, shape = RoundedCornerShape(10.dp), color = C.Sage,
+        modifier = Modifier.height(42.dp).semantics { selected = true; role = Role.Tab }) {
+        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DesignIcon(glyph, C.Ink)
+            Text(text, style = MaterialTheme.typography.labelLarge)
+        }
+    } else WorkspaceButton(text, onClick, glyph = glyph, modifier = Modifier.semantics { role = Role.Tab; selected = false })
 }
 
 /** Horizontal room picker and small dialog actions; overflow remains scrollable.
@@ -159,7 +186,10 @@ private fun RoomColumn(state: MainUiState, onAction: (MainAction) -> Unit,
                         enabled = !state.savingProfiles && state.profileStorage != ProfileStorageStatus.LoadFailed)
                 }
             }
-            PlaybackControls(state.playback, state.demoMode, onAction)
+            AudioSourceControls(state, onAction)
+            if (state.appCaptureMode) AppCaptureControls(state, onAction)
+            else if (state.liveInputMode) VirtualInputControls(state, onAction)
+            else PlaybackControls(state.playback, state.demoMode, onAction)
             CalibrationPanel(state, onAction)
             RoomCanvas(room, state.testingSpeakerId, onAction, Modifier.fillMaxWidth().height(canvasHeight))
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).horizontalScroll(rememberScrollState()),

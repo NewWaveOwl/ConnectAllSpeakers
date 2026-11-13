@@ -32,10 +32,10 @@ internal open class PropertyKey(formatId: String? = null, propertyId: Int = 0) :
 
 /** HRESULT failure without exposing endpoint identifiers in error messages.
  * @param operation Native operation that failed.
- * @param result Signed 32-bit HRESULT.
+ * @property resultCode Signed 32-bit HRESULT.
  */
-internal class CoreAudioException(operation: String, result: Int) :
-    IllegalStateException("$operation failed (0x${result.toUInt().toString(16).padStart(8, '0')}).")
+internal class CoreAudioException(operation: String, val resultCode: Int) :
+    IllegalStateException("$operation failed (0x${resultCode.toUInt().toString(16).padStart(8, '0')}).")
 
 /** Checks HRESULT success, including nonzero success codes.
  * @param operation Native operation label.

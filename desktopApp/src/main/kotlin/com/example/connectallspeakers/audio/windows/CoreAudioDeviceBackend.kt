@@ -133,7 +133,7 @@ internal class CoreAudioDeviceBackend : WindowsAudioBackend {
             val formFactor = readProperty(store, PropertyKey("{1DA5D803-D492-4EDD-8C23-E0C0FFEE7F0E}", 0)) {
                 if (it.getShort(0).toInt() == 19) it.getInt(8) else null // VT_UI4
             }
-            return AudioOutputDevice(id, name, isDefault = id == defaultId, type = when (formFactor) {
+            return AudioOutputDevice(id, name, isDefault = id == defaultId, role = AllConnectEndpointIdentity.role(device), type = when (formFactor) {
                 0 -> AudioOutputType.RemoteNetwork; 1 -> AudioOutputType.Speakers; 2 -> AudioOutputType.LineLevel
                 3 -> AudioOutputType.Headphones; 5 -> AudioOutputType.Headset; 6 -> AudioOutputType.Handset
                 7 -> AudioOutputType.DigitalPassthrough; 8 -> AudioOutputType.Spdif; 9 -> AudioOutputType.DigitalDisplay

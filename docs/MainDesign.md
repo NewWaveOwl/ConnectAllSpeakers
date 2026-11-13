@@ -84,8 +84,12 @@ sustained synchronization claim; EQ listening/quality checks and additional outp
 System-audio capture, 2.1/7.1 and Android
 playback are separate later features.
 
-For other Windows apps, the later [AllConnect virtual output](WindowsVirtualOutput.md)
-would feed audio into our engine through our own native driver. It is separate
-from proving simultaneous Bluetooth playback and is not needed for the frontend.
+For other Windows apps, the [AllConnect virtual output candidate](WindowsVirtualOutput.md)
+now has app-side live forwarding and render-only driver source. The driver
+cannot be built on this PC until the missing WDK/C++ tools are supplied; real
+endpoint/PCM-transfer feasibility remains unverified. Its first INF supports
+explicit per-app routing and prevents system-default selection. Production
+signing, default-device support and deployment follow successful lab evidence.
+This remains separate from proving simultaneous Bluetooth playback.
 
 Windows API reference: [stream management](https://learn.microsoft.com/windows/win32/coreaudio/stream-management).

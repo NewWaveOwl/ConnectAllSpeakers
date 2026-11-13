@@ -4,7 +4,7 @@ import com.example.connectallspeakers.audio.dsp.ChannelRenderer
 import com.example.connectallspeakers.audio.dsp.DecodedAudio
 import com.example.connectallspeakers.audio.dsp.PcmDelayLine
 import com.example.connectallspeakers.audio.dsp.AdaptivePcmRenderer
-import com.example.connectallspeakers.audio.dsp.OutputEqProcessor
+import com.example.connectallspeakers.audio.dsp.OutputChannelEq
 import com.example.connectallspeakers.model.audio.MAX_PLAYBACK_OUTPUTS
 import com.example.connectallspeakers.model.audio.PlaybackRoute
 import com.example.connectallspeakers.model.audio.OutputTiming
@@ -21,7 +21,7 @@ internal class PlaybackRenderSession(private val source: DecodedAudio, private v
     private val driftReferenceEndpointId: String? = null, private val monotonicNanos: () -> Long = System::nanoTime) : AutoCloseable {
     private data class Stream(val routeId: String, val endpoint: PlaybackEndpoint, val bytes: ByteArray,
         val delayMillis: Int, val delayFrames: Int, val delay: PcmDelayLine?, val adaptive: AdaptivePcmRenderer?,
-        val eq: OutputEqProcessor, val clock: OutputClockTracker = OutputClockTracker(), var cursor: Int = 0, var queued: Int = 0, var underruns: Int = 0,
+        val eq: OutputChannelEq, val clock: OutputClockTracker = OutputClockTracker(), var cursor: Int = 0, var queued: Int = 0, var underruns: Int = 0,
         var nativeReading: NativeClockReading? = null)
     private val streams = mutableListOf<Stream>()
     private val drift = driftReferenceEndpointId?.let { DriftController(it, source.sampleRate) }
@@ -47,7 +47,7 @@ internal class PlaybackRenderSession(private val source: DecodedAudio, private v
                 try {
                     require(endpoint.channels in 1..2 && endpoint.capacityFrames in 1..source.sampleRate * 2) { "Unsupported output buffer format." }
                     val delayFrames = outputDelayFrames(route.delayMillis, source.sampleRate)
-                    val eq = OutputEqProcessor(source.sampleRate, route.eq)
+                    val eq = OutputChannelEq(source.sampleRate, route.eq, endpoint.channels)
                     val adaptive = if (drift != null && route.endpointId != driftReferenceEndpointId)
                         AdaptivePcmRenderer(source, endpoint.channels, endpoint.capacityFrames, delayFrames, eq) else null
                     streams += Stream(route.endpointId, endpoint, ByteArray(endpoint.capacityFrames * endpoint.channels * 4),
@@ -97,6 +97,7 @@ internal class PlaybackRenderSession(private val source: DecodedAudio, private v
                     stream.eq.process(stream.bytes, frames, stream.endpoint.channels, sourceFrames)
                     stream.delay!!.process(stream.bytes, frames)
                 }
+                if (route.muted) stream.bytes.fill(0, 0, frames * stream.endpoint.channels * 4)
                 stream.endpoint.submit(stream.bytes, frames)
                 stream.cursor += frames
                 stream.queued += frames

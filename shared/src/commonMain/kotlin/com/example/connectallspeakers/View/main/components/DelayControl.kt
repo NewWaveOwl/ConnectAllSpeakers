@@ -59,7 +59,7 @@ fun DelayControl(delayMillis: Int, isReference: Boolean, onDelay: (Int) -> Unit)
                 })
         }
         Text(if (isReference) "Reference speaker: 0 ms. Choose the slower speaker as reference in Manual calibration."
-            else "0–$MAX_OUTPUT_DELAY_MILLIS ms. Changing delay stops playback; press Play to apply.",
+            else "0–$MAX_OUTPUT_DELAY_MILLIS ms. Changing delay stops audio; restart to apply.",
             style = MaterialTheme.typography.bodySmall, color = C.Muted)
     }
 }

@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.example.connectallspeakers.ViewModels.main.MainAction
 import com.example.connectallspeakers.data.audio.AudioOutputStatus
 import com.example.connectallspeakers.model.audio.AudioOutputType
+import com.example.connectallspeakers.model.audio.AudioOutputRole
 import com.example.connectallspeakers.state.MainUiState
 import com.example.connectallspeakers.ui.theme.AllConnectColors as C
 
@@ -29,6 +30,7 @@ private val OutputRowGap = 10.dp
 @Composable
 fun AudioOutputPicker(state: MainUiState, onAction: (MainAction) -> Unit) {
     val snapshot = state.outputs
+    val targets = snapshot.devices.filter { it.role == AudioOutputRole.PlaybackTarget }
     Column(verticalArrangement = Arrangement.spacedBy(OutputRowGap)) {
         Text("Windows playback outputs", style = MaterialTheme.typography.titleMedium)
         Text("Present and enabled outputs only. Microphones are excluded. Add up to two outputs to a playback room.", style = MaterialTheme.typography.bodySmall)
@@ -41,13 +43,14 @@ fun AudioOutputPicker(state: MainUiState, onAction: (MainAction) -> Unit) {
             AudioOutputStatus.Error -> Text(snapshot.message ?: "Could not read Windows outputs. Refresh to retry.",
                 color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             AudioOutputStatus.Unsupported -> Text(snapshot.message ?: "Windows discovery is unavailable.", style = MaterialTheme.typography.bodySmall)
-            AudioOutputStatus.Ready -> if (snapshot.devices.isEmpty()) Text("No active playback outputs. Connect or enable an output in Windows, then refresh.")
+            AudioOutputStatus.Ready -> if (targets.isEmpty()) Text("No physical playback targets. Connect or enable an output in Windows, then refresh.")
         }
-        if (snapshot.devices.isNotEmpty()) {
+        if (snapshot.devices.any { it.role != AudioOutputRole.PlaybackTarget }) Text("AllConnect virtual output and unidentified endpoints cannot be physical destinations, to prevent feedback.", style = MaterialTheme.typography.bodySmall)
+        if (targets.isNotEmpty()) {
             if (snapshot.status != AudioOutputStatus.Ready) Text("Last-known outputs — refresh must succeed before adding.", style = MaterialTheme.typography.bodySmall)
             Column(Modifier.heightIn(max = OutputListMaxHeight).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(OutputRowGap)) {
-                snapshot.devices.forEach { output ->
+                targets.forEach { output ->
                     val assigned = state.selectedSetup?.speakers?.any { it.output?.endpointId == output.endpointId } == true
                     Surface(onClick = { onAction(MainAction.AddOutput(output.endpointId)) },
                         enabled = snapshot.status == AudioOutputStatus.Ready,

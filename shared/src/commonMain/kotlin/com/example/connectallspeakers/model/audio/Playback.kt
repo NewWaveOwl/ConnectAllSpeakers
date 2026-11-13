@@ -19,15 +19,20 @@ enum class PlaybackPhase { Unsupported, Empty, Loading, Ready, Starting, Playing
  */
 data class PlaybackSource(val name: String, val durationMillis: Long, val sampleRate: Int, val channels: Int)
 
+/** Explicit complete-mix routing, independent of room channel placement. */
+enum class PlaybackMix { AssignedChannel, FullStereo }
+
 /** One explicit output route, never a default-device substitution.
  * @property endpointId Opaque Windows render endpoint identity.
  * @property channel Source channel deliberately selected by the user.
  * @property volumePercent Linear amplitude gain in percent, 0..100; never Windows master volume.
  * @property delayMillis Bounded nonnegative manual delay, fixed until the session restarts.
  * @property eq Validated per-output EQ; source-rate validation happens before preparation/updates.
+ * @property mix FullStereo preserves L/R on stereo devices and averages them on mono devices.
+ * @property muted Silences this output after EQ/delay, retaining route membership and volume.
  */
 data class PlaybackRoute(val endpointId: String, val channel: SpeakerChannel, val volumePercent: Int, val delayMillis: Int = 0,
-    val eq: SpeakerEq = SpeakerEq()) {
+    val eq: SpeakerEq = SpeakerEq(), val mix: PlaybackMix = PlaybackMix.AssignedChannel, val muted: Boolean = false) {
     init {
         require(endpointId.isNotBlank()) { "Choose an explicit playback output." }
         require(volumePercent in 0..100) { "Volume must be between 0 and 100%." }
@@ -47,6 +52,7 @@ data class PlaybackRoute(val endpointId: String, val channel: SpeakerChannel, va
  * @property timingSequence Increases for every measurement packet, including unchanged paused values.
  * @property isCalibration Whether a generated manual-calibration signal is playing.
  * @property routeUpdateError Rejected live-setting update; previous safe routes remain active.
+ * @property liveInput Continuous virtual-source diagnostics, absent for file/test playback.
  */
 data class PlaybackSnapshot(
     val phase: PlaybackPhase = PlaybackPhase.Unsupported,
@@ -59,4 +65,5 @@ data class PlaybackSnapshot(
     val timingSequence: Long = 0,
     val isCalibration: Boolean = false,
     val routeUpdateError: String? = null,
+    val liveInput: LiveInputStatus? = null,
 )
