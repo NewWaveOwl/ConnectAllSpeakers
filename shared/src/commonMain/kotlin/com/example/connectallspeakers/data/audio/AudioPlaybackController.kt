@@ -27,7 +27,7 @@ interface AudioPlaybackController {
      * @throws UnsupportedOperationException On launchers without this capability; no sample fallback.
      */
     fun startVirtualInput(endpointId: String, routes: List<PlaybackRoute>) {
-        throw UnsupportedOperationException("Virtual input is unavailable on this platform.")
+        throw UnsupportedOperationException("AllConnect virtual output is unavailable on this platform.")
     }
 
     /** Loads a user-selected local WAV or MP3 off the UI thread; never starts playback automatically.

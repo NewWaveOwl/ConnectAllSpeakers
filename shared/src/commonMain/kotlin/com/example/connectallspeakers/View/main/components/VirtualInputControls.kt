@@ -33,7 +33,7 @@ fun AudioSourceControls(state: MainUiState, onAction: (MainAction) -> Unit) {
         Text("Audio source", style = MaterialTheme.typography.labelLarge)
         val colors = FilterChipDefaults.filterChipColors(selectedContainerColor = C.Sage, selectedLabelColor = C.Ink, labelColor = C.Muted)
         FilterChip(selected = !state.liveInputMode, onClick = { onAction(MainAction.SetLiveInputMode(false)) }, label = { Text("Local file") }, colors = colors)
-        FilterChip(selected = state.liveInputMode && !state.appCaptureMode, onClick = { onAction(MainAction.SetLiveInputMode(true)) }, label = { Text("Virtual input · experimental") }, colors = colors)
+        FilterChip(selected = state.liveInputMode && !state.appCaptureMode, onClick = { onAction(MainAction.SetLiveInputMode(true)) }, label = { Text("AllConnect virtual output · experimental") }, colors = colors)
         FilterChip(selected = state.appCaptureMode, onClick = { onAction(MainAction.SelectAppCaptureMode) }, label = { Text("App audio · experimental") }, colors = colors)
     }
 }
@@ -51,14 +51,14 @@ fun VirtualInputControls(state: MainUiState, onAction: (MainAction) -> Unit) {
     val selected = inputs.find { it.endpointId == state.virtualInputId && it.availability == OutputAvailability.Active }
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, RoundedCornerShape(PanelCorner))
         .padding(LivePanelPadding), verticalArrangement = Arrangement.spacedBy(LivePanelGap)) {
-        Text("AllConnect virtual input · experimental", style = MaterialTheme.typography.titleSmall)
-        Text("Choose AllConnect Speakers in the other app’s output settings, then Start here. 48 kHz stereo · 1–2 physical targets.",
+        Text("AllConnect virtual output · experimental", style = MaterialTheme.typography.titleSmall)
+        Text("Select AllConnect Speakers as the audio output in another app, then press Start forwarding here. AllConnect sends that audio to your selected physical speakers or headphones. 48 kHz stereo · 1–2 destinations.",
             style = MaterialTheme.typography.bodySmall)
         when {
             state.demoMode -> Text("Demo speakers cannot forward audio. Switch Demo mode off.")
-            !state.virtualInputSupported -> Text("Virtual input is unavailable on this platform.")
+            !state.virtualInputSupported -> Text("AllConnect virtual output is unavailable on this platform.")
             discovery.status == AudioOutputStatus.Loading -> { LinearProgressIndicator(Modifier.fillMaxWidth()); Text("Reading Windows outputs…") }
-            !ready -> Text(discovery.message ?: "Refresh outputs before starting live input.", color = MaterialTheme.colorScheme.error)
+            !ready -> Text(discovery.message ?: "Refresh outputs before forwarding audio.", color = MaterialTheme.colorScheme.error)
             inputs.isEmpty() -> Text("AllConnect virtual driver not detected. Build and install the separate prototype driver in your test environment, then refresh.",
                 style = MaterialTheme.typography.bodySmall)
         }
@@ -67,7 +67,7 @@ fun VirtualInputControls(state: MainUiState, onAction: (MainAction) -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = input.endpointId == state.virtualInputId,
                         onClick = { onAction(MainAction.SelectVirtualInput(input.endpointId)) }, enabled = ready && !state.demoMode,
-                        modifier = Modifier.semantics { contentDescription = "Virtual input ${input.displayName}. Endpoint ${input.endpointId}" })
+                        modifier = Modifier.semantics { contentDescription = "Virtual output ${input.displayName}. Endpoint ${input.endpointId}" })
                     Column(Modifier.weight(1f)) {
                         Text(input.displayName, style = MaterialTheme.typography.bodyMedium)
                         Text(input.endpointId, style = MaterialTheme.typography.bodySmall, color = C.Muted)
@@ -76,8 +76,8 @@ fun VirtualInputControls(state: MainUiState, onAction: (MainAction) -> Unit) {
             }
         }
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(LivePanelGap)) {
-            WorkspaceButton("Refresh inputs", { onAction(MainAction.RefreshOutputs) }, enabled = discovery.status != AudioOutputStatus.Loading)
-            WorkspaceButton("Start live input", { onAction(MainAction.StartVirtualInput) }, primary = true,
+            WorkspaceButton("Refresh outputs", { onAction(MainAction.RefreshOutputs) }, enabled = discovery.status != AudioOutputStatus.Loading)
+            WorkspaceButton("Start forwarding", { onAction(MainAction.StartVirtualInput) }, primary = true,
                 enabled = ready && selected != null && state.virtualInputSupported && !state.demoMode && !active)
             WorkspaceButton("Stop", { onAction(MainAction.Stop) }, enabled = active)
         }

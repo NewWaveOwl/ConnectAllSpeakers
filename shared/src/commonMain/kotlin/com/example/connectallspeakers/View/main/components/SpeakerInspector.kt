@@ -53,7 +53,7 @@ fun SpeakerInspector(speaker: RoomSpeaker?, hasSetup: Boolean, demoMode: Boolean
                     speaker.isSample -> "Demo sample"
                     speaker.availability == OutputAvailability.Unavailable -> "Unavailable"
                     speaker.availability == OutputAvailability.Unknown -> "Availability unknown"
-                    speaker.output?.role == AudioOutputRole.AllConnectInput -> "Virtual input · cannot be a target"
+                    speaker.output?.role == AudioOutputRole.AllConnectInput -> "Virtual output · cannot be a physical destination"
                     speaker.output?.role == AudioOutputRole.Unknown -> "Identity unknown · target disabled"
                     else -> "Available output"
                 }, color = if (speaker.availability == OutputAvailability.Unavailable) MaterialTheme.colorScheme.error else C.Plum)

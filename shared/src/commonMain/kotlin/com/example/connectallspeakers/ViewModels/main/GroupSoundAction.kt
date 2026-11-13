@@ -2,9 +2,14 @@ package com.example.connectallspeakers.ViewModels.main
 
 /** Explicit group intents, all executed by the existing application audio owner. */
 sealed interface GroupSoundAction {
+    data class SetView(val view: com.example.connectallspeakers.state.GroupSoundView) : GroupSoundAction
     data object ManageDevices : GroupSoundAction
     data object ChooseSource : GroupSoundAction
     data object AdjustTiming : GroupSoundAction
+    /** @property endpointId Existing group member to inspect; selection never starts or stops audio. */
+    data class SelectDevice(val endpointId: String) : GroupSoundAction
+    /** @property query Session-only roster filter; does not remove or reroute devices. */
+    data class SearchDevices(val query: String) : GroupSoundAction
     /** @property endpointId Exact physical endpoint, validated against fresh discovery. */
     data class AddDevice(val endpointId: String) : GroupSoundAction
     /** @property endpointId Selected endpoint to remove without changing other settings. */

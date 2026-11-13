@@ -28,7 +28,7 @@ private val WideBreakpoint = 1100.dp
 private val DeviceRowBreakpoint = 720.dp
 private val GroupCorner = 16.dp
 
-/** Stateless Listening lounge; one source and one engine serve transient physical-device membership.
+/** Stateless Group Sound views; one source and one engine serve transient physical-device membership.
  * @param state Immutable application/group session. @param onAction User intent, never native work in composition.
  * @param modifier Parent sizing. Body scrolls independently of the persistent transport.
  */
@@ -43,12 +43,19 @@ fun GroupSoundScreen(state: MainUiState, onAction: (MainAction) -> Unit, modifie
                 Row(Modifier.fillMaxWidth().heightIn(min = 58.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(Modifier.weight(1f)) {
-                        Text("Group Sound View", style = MaterialTheme.typography.headlineSmall)
+                        Text(if (state.group.view == GroupSoundView.SharedCircle) "Group Sound · Shared Circle" else "Group Sound · Listening lounge", style = MaterialTheme.typography.headlineSmall)
                         Text("One source. Full sound for everyone.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
                     }
+                    WorkspaceButton(if (state.group.view == GroupSoundView.SharedCircle) "Listening lounge" else "Shared Circle", {
+                        onAction(MainAction.Group(GroupSoundAction.SetView(if (state.group.view == GroupSoundView.SharedCircle) GroupSoundView.ListeningLounge else GroupSoundView.SharedCircle)))
+                    })
                     WorkspaceButton("Manage devices", { onAction(MainAction.Group(GroupSoundAction.ManageDevices)) }, glyph = Glyph.Headphones)
                 }
-                if (wide) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                if (state.group.view == GroupSoundView.SharedCircle) {
+                    SharedCircleWorkspace(state, onAction)
+                    if (state.group.choosingSource) SharedSource(state, onAction)
+                    if (state.group.managingDevices) ListeningDevices(state, onAction)
+                } else if (wide) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     Column(Modifier.weight(900f), verticalArrangement = Arrangement.spacedBy(PanelGap)) {
                         SharedSource(state, onAction)
                         ListeningDevices(state, onAction)
@@ -76,13 +83,13 @@ private fun SharedSource(state: MainUiState, onAction: (MainAction) -> Unit) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             DesignIcon(if (state.liveInputMode) "\uE890" else "\uE405", size = 24.dp)
             Spacer(Modifier.width(16.dp))
-            Text(if (state.appCaptureMode) "App audio" else if (state.liveInputMode) "Virtual input" else "Local file", color = C.Muted)
+            Text(if (state.appCaptureMode) "App audio" else if (state.liveInputMode) "AllConnect virtual output" else "Local file", color = C.Muted)
             Spacer(Modifier.weight(1f))
             WorkspaceBadge("One shared source", C.Ink)
         }
         Text(when {
             state.appCaptureMode -> state.selectedCaptureApp?.name ?: "Choose an app"
-            state.liveInputMode -> state.outputs.devices.find { it.endpointId == state.virtualInputId }?.displayName ?: "Choose AllConnect input"
+            state.liveInputMode -> state.outputs.devices.find { it.endpointId == state.virtualInputId }?.displayName ?: "Choose AllConnect Speakers"
             else -> state.playback.source?.name ?: "Choose audio to share"
         }, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text(if (state.liveInputMode) "Live audio · Stereo · Starts only when you press Start"
@@ -97,7 +104,7 @@ private fun SharedSource(state: MainUiState, onAction: (MainAction) -> Unit) {
     }
 }
 
-/** Physical endpoint membership, with unavailable selections retained and a two-device limit. */
+/** Physical endpoint membership, with unavailable selections retained and twelve-member layout limit. */
 @Composable
 private fun ListeningDevices(state: MainUiState, onAction: (MainAction) -> Unit) {
     GroupPanel {
@@ -124,7 +131,7 @@ private fun ListeningDevices(state: MainUiState, onAction: (MainAction) -> Unit)
                     }
                     WorkspaceButton(if (selected) "Remove" else "Add", {
                         onAction(MainAction.Group(if (selected) GroupSoundAction.RemoveDevice(output.endpointId) else GroupSoundAction.AddDevice(output.endpointId)))
-                    }, enabled = state.outputs.status == AudioOutputStatus.Ready && (selected || state.group.devices.size < MAX_PLAYBACK_OUTPUTS))
+                    }, enabled = state.outputs.status == AudioOutputStatus.Ready && (selected || state.group.devices.size < MAX_GROUP_DEVICES))
                 }
             }
             state.group.devices.filter { it.output.availability != OutputAvailability.Active }.forEach { missing ->
@@ -219,7 +226,7 @@ private fun GroupTransport(state: MainUiState, onAction: (MainAction) -> Unit) {
 Text("${if (playback.isTestTone && running) "Testing device" else playback.liveInput?.phase?.name ?: if (running || paused || busy || playback.phase == PlaybackPhase.Error) playback.phase.name else if (routeError == null && sourceReady) "Ready" else "Choose source and devices"} · ${state.group.devices.size} devices selected",
             style = MaterialTheme.typography.labelLarge, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         Text(playback.routeUpdateError ?: if (playback.phase == PlaybackPhase.Error) playback.message.orEmpty()
-            else "The full mix goes to both. Timing has not been measured.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
+            else routeError ?: "The full mix goes to everyone. Timing has not been measured.", color = C.Muted, style = MaterialTheme.typography.bodySmall)
         }
         val actionsContent: @Composable () -> Unit = {
 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

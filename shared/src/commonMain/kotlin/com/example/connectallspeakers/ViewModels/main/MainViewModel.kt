@@ -25,6 +25,7 @@ import com.example.connectallspeakers.state.MainDialog
 import com.example.connectallspeakers.state.MainUiState
 import com.example.connectallspeakers.state.WorkspaceMode
 import com.example.connectallspeakers.state.GroupDevice
+import com.example.connectallspeakers.state.MAX_GROUP_DEVICES
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -238,7 +239,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             routes(before).map { it.endpointId to it.delayMillis } != routes(after).map { it.endpointId to it.delayMillis }) {
             stopPlayback()
             if (action is MainAction.SetDelay || action is MainAction.SelectCalibrationReference || action is MainAction.SetDriftCorrection || action == MainAction.ResetDelays) {
-                mutableState.update { it.copy(feedback = if (it.liveInputMode) "Timing settings changed. Press Start live input to restart. The file-only drift switch does not control live rate correction."
+                mutableState.update { it.copy(feedback = if (it.liveInputMode) "Timing settings changed. Press Start forwarding to restart. The file-only drift switch does not control live rate correction."
                     else "Timing settings changed. Press Play to restart; calibration cues use gain, EQ and manual delay without drift correction.") }
             }
         } else if (action is MainAction.SetVolume || action is MainAction.AssignChannel || action is MainAction.SetEqEnabled ||
@@ -538,7 +539,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             calibration && speakers.size != 2 -> "Add two real outputs to compare calibration cues."
             !calibration && current.workspace == WorkspaceMode.Room && current.selectedSetup?.driftCorrectionEnabled == true && speakers.size != 2 -> "Experimental drift correction needs two real outputs. Add another output or disable correction."
             speakers.any { it.isSample || it.availability != OutputAvailability.Active } -> "Every room output must be available before playback."
-            speakers.any { it.output?.role != AudioOutputRole.PlaybackTarget } -> "Virtual inputs and unidentified devices cannot be playback targets."
+            speakers.any { it.output?.role != AudioOutputRole.PlaybackTarget } -> "The AllConnect virtual output and unidentified devices cannot be physical playback destinations."
             current.outputs.status != AudioOutputStatus.Ready -> "Refresh outputs successfully before playback."
             (calibration || (current.workspace == WorkspaceMode.Room && current.selectedSetup?.driftCorrectionEnabled == true)) && current.selectedSetup?.calibrationReference?.delayMillis != 0 -> "The calibration reference must have zero delay."
             else -> null
@@ -573,34 +574,45 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
                 if (device.output.endpointId == id) transform(device) else device })) }
         }
         when (action) {
+            is GroupSoundAction.SetView -> mutableState.update { it.copy(group = it.group.copy(view = action.view)) }
             GroupSoundAction.ManageDevices -> mutableState.update { it.copy(group = it.group.copy(managingDevices = !it.group.managingDevices)) }
             GroupSoundAction.ChooseSource -> mutableState.update { it.copy(group = it.group.copy(choosingSource = !it.group.choosingSource)) }
             GroupSoundAction.AdjustTiming -> mutableState.update { it.copy(group = it.group.copy(adjustingTiming = !it.group.adjustingTiming)) }
+            is GroupSoundAction.SelectDevice -> if (before.any { it.output.endpointId == action.endpointId }) {
+                mutableState.update { it.copy(group = it.group.copy(selectedDeviceId = action.endpointId)) }
+            }
+            is GroupSoundAction.SearchDevices -> mutableState.update { it.copy(group = it.group.copy(deviceSearch = action.query)) }
             is GroupSoundAction.AddDevice -> {
                 val output = current.outputs.devices.singleOrNull { it.endpointId == action.endpointId }
                 when {
                     current.outputs.status != AudioOutputStatus.Ready || output == null || output.role != AudioOutputRole.PlaybackTarget || output.availability != OutputAvailability.Active ->
                         mutableState.update { it.copy(feedback = "Choose an available, identified physical endpoint after refreshing outputs.") }
                     before.any { it.output.endpointId == action.endpointId } -> mutableState.update { it.copy(feedback = "This listening device is already selected.") }
-                    before.size >= MAX_PLAYBACK_OUTPUTS -> mutableState.update { it.copy(feedback = "Group Sound supports one or two outputs in this milestone.") }
-                    else -> mutableState.update { it.copy(group = it.group.copy(devices = before + GroupDevice(output))) }
+                    before.size >= MAX_GROUP_DEVICES -> mutableState.update { it.copy(feedback = "The Shared Circle can display up to $MAX_GROUP_DEVICES devices.") }
+                    else -> mutableState.update { it.copy(group = it.group.copy(devices = before + GroupDevice(output),
+                        selectedDeviceId = it.group.selectedDevice?.output?.endpointId ?: action.endpointId)) }
                 }
             }
-            is GroupSoundAction.RemoveDevice -> mutableState.update { it.copy(group = it.group.copy(devices = before.filterNot { it.output.endpointId == action.endpointId })) }
+            is GroupSoundAction.RemoveDevice -> mutableState.update {
+                val remaining = before.filterNot { device -> device.output.endpointId == action.endpointId }
+                it.copy(group = it.group.copy(devices = remaining, selectedDeviceId =
+                    it.group.selectedDeviceId?.takeIf { id -> remaining.any { device -> device.output.endpointId == id } }
+                        ?: remaining.firstOrNull()?.output?.endpointId))
+            }
             is GroupSoundAction.SetVolume -> edit(action.endpointId) { it.copy(volumePercent = action.percent.coerceIn(0, 100)) }
             is GroupSoundAction.ToggleMute -> edit(action.endpointId) { it.copy(muted = !it.muted) }
             is GroupSoundAction.SetDelay -> if (action.millis in 0..MAX_OUTPUT_DELAY_MILLIS) edit(action.endpointId) { it.copy(delayMillis = action.millis) }
                 else mutableState.update { it.copy(feedback = "Delay must be between 0 and $MAX_OUTPUT_DELAY_MILLIS ms.") }
             is GroupSoundAction.TestDevice -> {
                 val device = before.singleOrNull { it.output.endpointId == action.endpointId } ?: return
-                val error = current.group.routeError(current.outputs)
+                if (current.testingSpeakerId == action.endpointId) { stopPlayback(); return }
+                val error = current.group.copy(devices = listOf(device)).routeError(current.outputs)
                 if (error != null || playbackController == null) {
                     mutableState.update { it.copy(feedback = error ?: "Playback requires Windows.") }; return
                 }
-                if (current.testingSpeakerId == action.endpointId) stopPlayback()
-                else {
+                run {
                     requestedTestEndpointId = action.endpointId
-                    playbackController.testSpeaker(device.route())
+                    playbackController?.testSpeaker(device.route())
                     mutableState.update { it.copy(testingSpeakerId = action.endpointId) }
                 }
             }
@@ -610,7 +622,8 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             stopPlayback()
         } else if (before != after) {
             val latest = routes(state.value)
-            playbackController?.updateRoutes(requestedTestEndpointId?.let { test -> latest.filter { it.endpointId == test } } ?: latest)
+            val updated = requestedTestEndpointId?.let { test -> latest.filter { it.endpointId == test } } ?: latest
+            if (updated.size in 1..MAX_PLAYBACK_OUTPUTS) playbackController?.updateRoutes(updated)
         }
     }
 
@@ -627,10 +640,10 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
         val speakers = playbackSpeakers(current)
         val error = when {
             current.workspace == WorkspaceMode.GroupSound && current.group.routeError(current.outputs) != null -> current.group.routeError(current.outputs)
-            !current.liveInputMode || current.appCaptureMode || current.demoMode -> "Select Virtual input with Demo mode off."
-            playbackController?.supportsVirtualInput != true -> "Virtual input is available in the Windows desktop app only."
+            !current.liveInputMode || current.appCaptureMode || current.demoMode -> "Select AllConnect virtual output with Demo mode off."
+            playbackController?.supportsVirtualInput != true -> "AllConnect virtual output is available in the Windows desktop app only."
             current.outputs.status != AudioOutputStatus.Ready -> "Refresh outputs successfully before starting live input."
-            current.outputs.devices.none { it.endpointId == current.virtualInputId && it.role == AudioOutputRole.AllConnectInput && it.availability == OutputAvailability.Active } -> "Select an available AllConnect virtual input. The driver must be installed separately."
+            current.outputs.devices.none { it.endpointId == current.virtualInputId && it.role == AudioOutputRole.AllConnectInput && it.availability == OutputAvailability.Active } -> "Select the available AllConnect Speakers virtual output. Its driver must be installed separately."
             speakers.size !in 1..MAX_PLAYBACK_OUTPUTS -> "Add one or two physical outputs to this room."
             speakers.any { it.output?.role != AudioOutputRole.PlaybackTarget || it.availability != OutputAvailability.Active } -> "Every target must be an available physical playback output."
             else -> null
@@ -704,7 +717,7 @@ class MainViewModel(initialState: MainUiState = MainUiState(),
             return
         }
         if (output.role != AudioOutputRole.PlaybackTarget) {
-            mutableState.update { it.copy(feedback = "Virtual inputs cannot be speaker-test targets.") }; return
+            mutableState.update { it.copy(feedback = "The AllConnect virtual output cannot be a physical speaker-test destination.") }; return
         }
         val id = selected.id
         requestedTestEndpointId = output.endpointId

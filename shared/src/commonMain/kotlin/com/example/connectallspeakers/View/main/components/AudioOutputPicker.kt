@@ -45,7 +45,7 @@ fun AudioOutputPicker(state: MainUiState, onAction: (MainAction) -> Unit) {
             AudioOutputStatus.Unsupported -> Text(snapshot.message ?: "Windows discovery is unavailable.", style = MaterialTheme.typography.bodySmall)
             AudioOutputStatus.Ready -> if (targets.isEmpty()) Text("No physical playback targets. Connect or enable an output in Windows, then refresh.")
         }
-        if (snapshot.devices.any { it.role != AudioOutputRole.PlaybackTarget }) Text("AllConnect virtual inputs and unidentified endpoints are excluded to prevent feedback.", style = MaterialTheme.typography.bodySmall)
+        if (snapshot.devices.any { it.role != AudioOutputRole.PlaybackTarget }) Text("AllConnect virtual output and unidentified endpoints cannot be physical destinations, to prevent feedback.", style = MaterialTheme.typography.bodySmall)
         if (targets.isNotEmpty()) {
             if (snapshot.status != AudioOutputStatus.Ready) Text("Last-known outputs — refresh must succeed before adding.", style = MaterialTheme.typography.bodySmall)
             Column(Modifier.heightIn(max = OutputListMaxHeight).verticalScroll(rememberScrollState()),

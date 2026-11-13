@@ -3,14 +3,23 @@
 Implements issue #16's first one/two-output slice using the recommended
 [Figma Listening lounge](https://www.figma.com/design/00yms4g5bXQxxiZVINVXo3/AllConnect?node-id=53-1758).
 This is experimental software; acoustic synchronization and hardware acceptance
-are pending. The other four design concepts are alternatives, not extra screens.
+are pending. Shared Circle is an additional switchable view based on
+[Figma Shared Circle](https://www.figma.com/design/00yms4g5bXQxxiZVINVXo3/AllConnect?node-id=66-2082).
+Its 3/4-device roomy, 6/8-device medium, and 12-device compact arrangements share
+the existing source and audio owner. Narrow windows scroll the circle horizontally
+and put the inspector below it. Empty, one- and two-member groups are also supported.
+Select a node or roster row to inspect it; search filters the roster only.
+The inspector controls level, mute, bounded testing and manual delay.
+Up to twelve real outputs can be selected for layout, but groups above two are
+explicitly layout-only: group playback stays disabled. No placeholder endpoints
+are inserted into a real session.
 
 ## Use
 
 1. Select **Group Sound**, then **Manage devices**. Connect/pair devices in Windows
-   and refresh. Add one or two available physical endpoints. Identical names are
+   and refresh. Add available physical endpoints (up to twelve for layout; one or two for playback). Identical names are
    allowed; the picker shows their distinct endpoint identities.
-2. Use **Change source** to select a local WAV/MP3, App audio, or Virtual input.
+2. Use **Change source** to select a local WAV/MP3, App audio, or AllConnect virtual output.
    Source selection and navigation never start playback.
 3. For a local file, use Play / Pause / Resume / Stop. Live sources have explicit
    Start / Stop; live audio is not recorded or retained while stopped.
@@ -29,7 +38,8 @@ assignment behavior. Independent EQ histories prevent left/right crosstalk.
 
 Group membership, volume, mute, delay and source intent are session-only. Room
 saves serialize rooms only. The source picker and one application-owned controller
-are shared between the two views; switching views stops that controller. There
+are shared between Room setup and Group Sound; switching workspaces stops that controller.
+Switching Shared Circle / Listening lounge preserves the active session. There
 is no competing audio owner, default-output fallback or automatic restart.
 
 ## Source and failure boundaries
@@ -38,7 +48,7 @@ is no competing audio owner, default-output fallback or automatic restart.
   bundled by the desktop build. It needs Windows build 20348+ x64 and no virtual
   driver. The source application's original output continues playing, potentially
   causing echo. Process IDs/creation times and capture intent are never saved.
-- Virtual input needs the separately signed/installed AllConnect prototype driver.
+- AllConnect virtual output needs the separately signed/installed AllConnect prototype driver.
   Group Sound does not install it or change Windows security/default outputs.
 - Unknown, missing, duplicate/ambiguous and owned-virtual target identities fail
   closed. The two-output engine limit is unchanged. Availability means Ready,
@@ -50,7 +60,7 @@ is no competing audio owner, default-output fallback or automatic restart.
   per-channel EQ and bounded per-device delay. Muted destinations keep consuming
   the live timeline, so unmuting cannot replay an accumulated recording.
 - No accounts, network listeners, phones, invitations, microphone capture,
-  Bluetooth pairing controls, surround or three-plus-device support are included.
+  Bluetooth pairing controls, surround or three-plus-device simultaneous playback are included.
 
 ## Verification and remaining acceptance
 
@@ -88,3 +98,12 @@ queue/memory observations and pass/fail against the agreed tolerance. Until that
 passes, the view deliberately says **Timing not checked**. See
 [virtual-output lab acceptance](WindowsVirtualOutput.md) for issue #11's additional
 install, real cross-application PCM-transfer and removal gates.
+
+### Shared Circle validation
+
+Shared/desktop compilation and 221 JUnit tests passed using installed compiler
+and cached dependencies. Offscreen fixtures covered 0/1/2/3/4/6/8/12 members at
+1440x1000 and 560x900; the requested radial densities were visually reviewed.
+Fixtures are verification-only and never populate normal sessions. Gradle's
+wrapper cannot access its cache lock in this environment; Android assembly and
+packaging remain unverified. No additional physical-output acceptance is claimed.

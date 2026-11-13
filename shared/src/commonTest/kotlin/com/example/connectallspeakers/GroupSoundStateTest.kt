@@ -56,7 +56,7 @@ class GroupSoundStateTest {
         assertEquals(1, engine.starts)
         assertTrue(engine.stops >= 2)
     }
-    @Test fun duplicateMissingVirtualUnknownAndThirdEndpointsNeverStartOrReplaceRoutes() = runTest {
+    @Test fun invalidIdentitiesAndLayoutOnlyGroupsNeverStartPlayback() = runTest {
         val engine = Playback(); val outputs = Outputs()
         val owner = MainViewModel(outputRepository = outputs, playbackController = engine, collectionScope = backgroundScope)
         runCurrent(); owner.onAction(MainAction.SelectWorkspace(WorkspaceMode.GroupSound))
@@ -66,12 +66,12 @@ class GroupSoundStateTest {
         assertEquals(1, owner.state.value.group.devices.size)
         owner.group(GroupSoundAction.AddDevice("b"))
         outputs.outputs.value = outputs.outputs.value.copy(devices = outputs.outputs.value.devices + AudioOutputDevice("c", "Third"))
-        runCurrent(); owner.group(GroupSoundAction.AddDevice("c")); assertEquals(2, owner.state.value.group.devices.size)
+        runCurrent(); owner.group(GroupSoundAction.AddDevice("c")); assertEquals(3, owner.state.value.group.devices.size)
         outputs.outputs.value = outputs.outputs.value.copy(devices = outputs.outputs.value.devices + AudioOutputDevice("a", "Ambiguous"))
         runCurrent(); owner.onAction(MainAction.Play); assertEquals(0, engine.starts)
         outputs.outputs.value = outputs.outputs.value.copy(devices = outputs.outputs.value.devices.filterNot { it.endpointId == "b" })
         runCurrent(); owner.onAction(MainAction.Play); assertEquals(0, engine.starts)
-        assertEquals(2, owner.state.value.group.devices.size)
+        assertEquals(3, owner.state.value.group.devices.size)
     }
     @Test fun levelsMuteTestsAndDelayHaveIndependentExplicitLifetimes() = runTest {
         val engine = Playback()
@@ -124,4 +124,25 @@ class GroupSoundStateTest {
         assertTrue(state.setups.all { it.speakers.isEmpty() })
         assertTrue(MainUiState().group.devices.isEmpty())
     }
+    @Test fun circleSelectionFilteringAndViewSwitchKeepRoutesAndPlaybackUntouched() = runTest {
+        val engine = Playback(); val outputs = Outputs()
+        outputs.outputs.value = outputs.outputs.value.copy(devices = List(13) { AudioOutputDevice("$it", "Device $it") })
+        val owner = MainViewModel(outputRepository = outputs, playbackController = engine, collectionScope = backgroundScope)
+        runCurrent(); owner.onAction(MainAction.SelectWorkspace(WorkspaceMode.GroupSound))
+        repeat(13) { owner.group(GroupSoundAction.AddDevice("$it")) }
+        assertEquals(12, owner.state.value.group.devices.size)
+        assertNotNull(owner.state.value.group.routeError(outputs.outputs.value))
+        val stops = engine.stops; val routes = engine.routes
+        owner.group(GroupSoundAction.SelectDevice("8"))
+        owner.group(GroupSoundAction.SearchDevices("Device 1"))
+        owner.group(GroupSoundAction.SetView(GroupSoundView.ListeningLounge))
+        assertEquals("8", owner.state.value.group.selectedDevice?.output?.endpointId)
+        assertEquals(12, owner.state.value.group.devices.size)
+        assertEquals(stops, engine.stops); assertEquals(routes, engine.routes)
+        owner.onAction(MainAction.Play); assertEquals(0, engine.starts)
+        owner.group(GroupSoundAction.TestDevice("8")); assertEquals("8", engine.routes.single().endpointId)
+        owner.group(GroupSoundAction.RemoveDevice("8"))
+        assertEquals("0", owner.state.value.group.selectedDevice?.output?.endpointId)
+    }
+
 }
